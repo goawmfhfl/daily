@@ -1,0 +1,122 @@
+/** 기획안 태그 체계. 처음부터 많이 만들지 않는다. */
+
+export const EMOTIONS = [
+  "기쁨",
+  "평온",
+  "불안",
+  "무기력",
+  "분노",
+  "슬픔",
+] as const;
+export type Emotion = (typeof EMOTIONS)[number];
+
+export const EMOTION_META: Record<
+  Emotion,
+  { color: string; token: string; polarity: "positive" | "negative" | "neutral" }
+> = {
+  기쁨: { color: "var(--joy)", token: "joy", polarity: "positive" },
+  평온: { color: "var(--calm)", token: "calm", polarity: "positive" },
+  불안: { color: "var(--anxiety)", token: "anxiety", polarity: "negative" },
+  무기력: { color: "var(--lethargy)", token: "lethargy", polarity: "negative" },
+  분노: { color: "var(--anger)", token: "anger", polarity: "negative" },
+  슬픔: { color: "var(--sadness)", token: "sadness", polarity: "negative" },
+};
+
+export const EVENT_TYPES = [
+  "일",
+  "관계",
+  "건강",
+  "돈",
+  "가족",
+  "성취",
+  "실패",
+] as const;
+export type EventType = (typeof EVENT_TYPES)[number];
+
+export const TAG_KINDS = [
+  "emotion",
+  "intensity",
+  "event",
+  "stressor",
+  "energy",
+  "stress_level",
+  "self_view_positive",
+  "self_view_negative",
+] as const;
+export type TagKind = (typeof TAG_KINDS)[number];
+
+export const TAG_KIND_LABEL: Record<TagKind, string> = {
+  emotion: "감정",
+  intensity: "감정 강도",
+  event: "사건 유형",
+  stressor: "스트레스 원인",
+  energy: "에너지",
+  stress_level: "스트레스 정도",
+  self_view_positive: "긍정적 자기 평가",
+  self_view_negative: "부정적 자기 평가",
+};
+
+export const AI_MODES = ["comfort", "organize", "analyze", "coach"] as const;
+export type AiMode = (typeof AI_MODES)[number];
+export const AI_MODE_META: Record<
+  AiMode,
+  { label: string; description: string }
+> = {
+  comfort: { label: "위로", description: "분석을 미루고 들어주기" },
+  organize: { label: "정리", description: "쓴 내용을 짧게 요약" },
+  analyze: { label: "분석", description: "패턴을 짚어주기" },
+  coach: { label: "코칭", description: "작은 실험 하나 제안" },
+};
+
+export const PERIODS = [
+  { key: "7d", label: "최근 7일", days: 7 },
+  { key: "30d", label: "최근 30일", days: 30 },
+  { key: "all", label: "전체", days: null },
+] as const;
+export type PeriodKey = (typeof PERIODS)[number]["key"];
+
+/** 리포트 생성 최소 기록 수. 이보다 적으면 "아직 말할 수 없다" */
+export const MIN_ENTRIES_FOR_REPORT = 7;
+
+/** 대화형 기록 최대 교환 횟수 */
+export const DIALOGUE_MAX_TURNS = 6;
+
+/**
+ * 위기 대응 연락처.
+ * 출시 시점에 최신 정보로 다시 확인해야 합니다. (2026-11 기준)
+ */
+export const CRISIS_RESOURCES = [
+  {
+    name: "자살예방상담전화",
+    number: "109",
+    note: "24시간, 전국 공통",
+  },
+  {
+    name: "정신건강위기상담전화",
+    number: "1577-0199",
+    note: "24시간",
+  },
+  {
+    name: "응급 상황",
+    number: "112 / 119",
+    note: "지금 바로 위험하다면",
+  },
+] as const;
+
+export type UserSettings = {
+  /** 위로 모드 직설 정도 1(부드럽게) ~ 3(직설적으로) */
+  comfort_directness: 1 | 2 | 3;
+  /** 분석 모드 냉정함 1(따뜻하게) ~ 3(냉정하게) */
+  analysis_coldness: 1 | 2 | 3;
+  default_mode: "free" | "dialogue";
+  default_ai_mode: AiMode;
+  display_name: string | null;
+};
+
+export const DEFAULT_SETTINGS: UserSettings = {
+  comfort_directness: 2,
+  analysis_coldness: 2,
+  default_mode: "free",
+  default_ai_mode: "comfort",
+  display_name: null,
+};
