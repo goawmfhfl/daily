@@ -21,13 +21,6 @@ export const TagSuggestionSchema = z.object({
 });
 export type TagSuggestionOut = z.infer<typeof TagSuggestionSchema>;
 
-export const DialogueTurnSchema = z.object({
-  message: z.string(),
-  done: z.boolean(),
-  risk: z.boolean(),
-});
-export type DialogueTurnOut = z.infer<typeof DialogueTurnSchema>;
-
 const EvidenceRef = z.object({
   ref: z.number().int(),
   quote: z.string(),

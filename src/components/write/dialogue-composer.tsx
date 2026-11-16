@@ -1,174 +1,241 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { CornerDownLeft, RotateCcw, Sparkles } from "lucide-react";
-import { AI_MODES, AI_MODE_META, DIALOGUE_MAX_TURNS, type AiMode } from "@/lib/constants";
-import type { DialogueMessage } from "@/lib/types";
-import { api } from "@/lib/api";
+import { CornerDownLeft, RotateCcw, Sparkles, X } from "lucide-react";
+import { AI_MODES, AI_MODE_META, type AiMode } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Chip } from "@/components/ui/chip";
-import { useToast } from "@/components/ui/toast";
 
-const OPENERS = [
-  "오늘 가장 마음에 남은 순간은 무엇이었나요?",
-  "지금 몸의 상태를 한 단어로 말하면 무엇인가요? 그 이유도 궁금합니다.",
-  "오늘 하루 중 가장 에너지가 떨어진 때는 언제였나요?",
-  "오늘 나를 조금이라도 웃게 한 일이 있었나요?",
-  "지금 머릿속을 가장 많이 차지하는 생각은 무엇인가요?",
+type Speaker = "a" | "b";
+
+interface Line {
+  id: number;
+  speaker: Speaker;
+  text: string;
+}
+
+const DEFAULT_NAMES: Record<Speaker, string> = { a: "A", b: "B" };
+
+/** 역할 예시: 누르면 두 화자의 이름이 바뀐다 */
+const PRESETS: { a: string; b: string }[] = [
+  { a: "지금의 나", b: "1년 뒤의 나" },
+  { a: "나", b: "내 안의 비평가" },
+  { a: "나", b: "가장 친한 친구" },
+  { a: "불안한 나", b: "다독이는 나" },
 ];
 
+const NAMES_KEY = "daily:self-dialogue-names";
+
+function loadNames(): Record<Speaker, string> {
+  try {
+    const raw = window.localStorage.getItem(NAMES_KEY);
+    if (raw) {
+      const v = JSON.parse(raw) as Partial<Record<Speaker, string>>;
+      return { a: v.a ?? DEFAULT_NAMES.a, b: v.b ?? DEFAULT_NAMES.b };
+    }
+  } catch {
+    // 저장소를 쓸 수 없는 환경이면 기본 이름
+  }
+  return DEFAULT_NAMES;
+}
+
 /**
- * 대화형 기록: AI가 짧은 질문을 던지고 사용자가 답한다.
- * 저장 시에는 사용자의 답변만 모아 하나의 기록으로 만든다 (AI 말은 분석 데이터에서 제외).
+ * 셀프 대화형 기록: 내가 A와 B 두 화자를 모두 맡아 스스로와 대화한다.
+ * - A 입력란에서 Enter → A의 말로 추가되고 커서가 B로, B에서 Enter → 다시 A로
+ * - Shift + Enter 는 줄바꿈
+ * - 저장하면 "이름: 말" 형식의 대화 전체가 하나의 기록이 된다
  */
 export function DialogueComposer({
   aiMode,
   onAiModeChange,
-  aiAvailable,
   saving,
   onSave,
 }: {
   aiMode: AiMode;
   onAiModeChange: (m: AiMode) => void;
-  aiAvailable: boolean;
   saving: boolean;
-  onSave: (content: string) => void;
+  /** 저장에 성공하면 true */
+  onSave: (content: string) => Promise<boolean>;
 }) {
-  const router = useRouter();
-  const toast = useToast();
-  const [messages, setMessages] = React.useState<DialogueMessage[]>(() => [
-    { role: "assistant", content: OPENERS[Math.floor(Math.random() * OPENERS.length)] },
-  ]);
-  const [draft, setDraft] = React.useState("");
-  const [thinking, setThinking] = React.useState(false);
-  const [done, setDone] = React.useState(false);
+  // 마지막에 쓴 역할 이름을 기억 (이 기기에서만). 이 화면은 브라우저에서만 그려진다
+  const [names, setNames] = React.useState<Record<Speaker, string>>(loadNames);
+  const [lines, setLines] = React.useState<Line[]>([]);
+  const [drafts, setDrafts] = React.useState<Record<Speaker, string>>({ a: "", b: "" });
+  const inputRefs = { a: React.useRef<HTMLTextAreaElement>(null), b: React.useRef<HTMLTextAreaElement>(null) };
+  const idRef = React.useRef(0);
   const bottomRef = React.useRef<HTMLDivElement>(null);
 
-  const userTurns = messages.filter((m) => m.role === "user");
-  const canAsk = aiAvailable && !done && userTurns.length < DIALOGUE_MAX_TURNS;
+  function updateNames(next: Record<Speaker, string>) {
+    setNames(next);
+    try {
+      window.localStorage.setItem(NAMES_KEY, JSON.stringify(next));
+    } catch {
+      // 무시
+    }
+  }
 
   React.useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [messages, thinking]);
+    if (lines.length) bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [lines.length]);
 
-  async function send() {
-    const text = draft.trim();
-    if (!text || thinking) return;
-    const next: DialogueMessage[] = [...messages, { role: "user", content: text }];
-    setMessages(next);
-    setDraft("");
-    if (!canAsk) {
-      setDone(true);
-      return;
-    }
-    setThinking(true);
-    try {
-      const res = await api<{ message: string | null; done: boolean; risk: boolean }>(
-        "/api/dialogue",
-        { method: "POST", body: { messages: next, ai_mode: aiMode } },
-      );
-      if (res.risk) {
-        // 사람 우선: 대화를 멈추고 사용자의 답변만 저장한 뒤 안전 화면으로
-        onSave(next.filter((m) => m.role === "user").map((m) => m.content).join("\n\n"));
-        router.prefetch("/safety");
-        return;
-      }
-      if (res.message) setMessages((m) => [...m, { role: "assistant", content: res.message! }]);
-      if (res.done) setDone(true);
-    } catch (e) {
-      toast.push({ tone: "error", title: "질문을 가져오지 못했습니다", description: e instanceof Error ? e.message : undefined });
-    } finally {
-      setThinking(false);
-    }
+  const nameOf = (s: Speaker) => names[s].trim() || DEFAULT_NAMES[s];
+  const other = (s: Speaker): Speaker => (s === "a" ? "b" : "a");
+
+  function send(speaker: Speaker) {
+    const text = drafts[speaker].trim();
+    if (!text || saving) return;
+    setLines((prev) => [...prev, { id: ++idRef.current, speaker, text }]);
+    setDrafts((d) => ({ ...d, [speaker]: "" }));
+    // 상대 역할로 차례를 넘긴다
+    inputRefs[other(speaker)].current?.focus();
+  }
+
+  function removeLine(id: number) {
+    setLines((prev) => prev.filter((l) => l.id !== id));
   }
 
   function reset() {
-    setMessages([{ role: "assistant", content: OPENERS[Math.floor(Math.random() * OPENERS.length)] }]);
-    setDraft("");
-    setDone(false);
+    if (lines.length && !window.confirm("지금까지 쓴 대화를 지우고 새로 시작할까요?")) return;
+    setLines([]);
+    setDrafts({ a: "", b: "" });
+    inputRefs.a.current?.focus();
   }
 
-  function save() {
-    const content = userTurns.map((m) => m.content).join("\n\n");
-    if (!content.trim()) return;
-    onSave(content);
+  /** 입력란에 남아 있는 말도 함께 저장 */
+  function transcript() {
+    const pending = (["a", "b"] as const)
+      .filter((s) => drafts[s].trim())
+      .map((s) => ({ id: -1, speaker: s, text: drafts[s].trim() }));
+    return [...lines, ...pending].map((l) => `${nameOf(l.speaker)}: ${l.text}`).join("\n\n");
   }
 
-  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-      e.preventDefault();
-      void send();
+  async function save() {
+    const content = transcript();
+    if (!content.trim() || saving) return;
+    // 저장에 성공했을 때만 비운다 (실패하면 쓴 대화를 그대로 둔다)
+    if (await onSave(content)) {
+      setLines([]);
+      setDrafts({ a: "", b: "" });
     }
   }
 
+  function onKeyDown(speaker: Speaker) {
+    return (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+        e.preventDefault();
+        if (e.metaKey || e.ctrlKey) void save();
+        else send(speaker);
+      }
+    };
+  }
+
+  const hasContent = lines.length > 0 || !!drafts.a.trim() || !!drafts.b.trim();
+
   return (
     <div className="flex min-h-[420px] flex-col">
-      <div className="flex-1 space-y-3 overflow-y-auto px-5 py-5">
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            className={cn(
-              "flex animate-fade-up",
-              m.role === "user" ? "justify-end" : "justify-start",
-            )}
-          >
+      <div className="flex-1 space-y-3 px-5 py-5">
+        {lines.length === 0 ? (
+          <div className="space-y-4 py-6 text-center">
+            <div>
+              <p className="text-body font-medium">두 사람이 되어 스스로와 대화해 보세요</p>
+              <p className="mt-1 text-caption text-muted">
+                A와 B를 모두 내가 맡습니다. 한쪽에서 Enter 를 누르면 차례가 상대에게 넘어가고, Shift + Enter 는 줄바꿈, ⌘/Ctrl + Enter 는 저장입니다.
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-1.5">
+              {PRESETS.map((p) => (
+                <Chip
+                  key={`${p.a}-${p.b}`}
+                  size="sm"
+                  selected={names.a === p.a && names.b === p.b}
+                  onClick={() => updateNames(p)}
+                >
+                  {p.a} · {p.b}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        ) : (
+          lines.map((l) => (
             <div
+              key={l.id}
               className={cn(
-                "max-w-[85%] rounded-2xl px-4 py-2.5 text-body leading-relaxed",
-                m.role === "user"
-                  ? "rounded-br-md bg-primary text-primary-foreground"
-                  : "rounded-bl-md bg-surface-2 text-foreground",
+                "group flex animate-fade-up items-end gap-1.5",
+                l.speaker === "b" ? "flex-row-reverse" : "flex-row",
               )}
             >
-              {m.content}
+              <div className={cn("flex max-w-[85%] flex-col", l.speaker === "b" ? "items-end" : "items-start")}>
+                <span className="mb-1 px-1 text-micro font-medium text-subtle">{nameOf(l.speaker)}</span>
+                <div
+                  className={cn(
+                    "whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-body leading-relaxed",
+                    l.speaker === "b"
+                      ? "rounded-br-md bg-primary text-primary-foreground"
+                      : "rounded-bl-md bg-surface-2 text-foreground",
+                  )}
+                >
+                  {l.text}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeLine(l.id)}
+                disabled={saving}
+                className="mb-1 rounded-sm p-1 text-subtle opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                aria-label="이 말 지우기"
+              >
+                <X className="size-3.5" />
+              </button>
             </div>
-          </div>
-        ))}
-        {thinking && (
-          <div className="flex justify-start">
-            <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md bg-surface-2 px-4 py-3">
-              <span className="size-1.5 animate-pulse-soft rounded-full bg-subtle" />
-              <span className="size-1.5 animate-pulse-soft rounded-full bg-subtle [animation-delay:200ms]" />
-              <span className="size-1.5 animate-pulse-soft rounded-full bg-subtle [animation-delay:400ms]" />
-            </div>
-          </div>
-        )}
-        {done && userTurns.length > 0 && (
-          <p className="pt-2 text-center text-caption text-muted">
-            대화가 끝났습니다. 아래에서 기록으로 저장하세요. (AI의 말은 저장되지 않습니다)
-          </p>
+          ))
         )}
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-border bg-surface-2/50 px-4 py-3">
-        {!done && (
-          <div className="flex items-end gap-2">
+      <div className="space-y-2 border-t border-border bg-surface-2/50 px-4 py-3">
+        {(["a", "b"] as const).map((s) => (
+          <div key={s} className="flex items-start gap-2">
+            <input
+              value={names[s]}
+              onChange={(e) => updateNames({ ...names, [s]: e.target.value })}
+              maxLength={20}
+              placeholder={DEFAULT_NAMES[s]}
+              aria-label={`${DEFAULT_NAMES[s]} 화자 이름`}
+              className={cn(
+                "h-10 w-24 shrink-0 truncate rounded-md border px-2.5 text-caption font-semibold focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/15 sm:w-28",
+                s === "b"
+                  ? "border-transparent bg-primary text-primary-foreground placeholder:text-primary-foreground/60"
+                  : "border-border bg-surface text-foreground placeholder:text-subtle",
+              )}
+            />
             <Textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={onKeyDown}
-              rows={2}
-              placeholder={aiAvailable ? "답을 적고 Enter" : "AI 키가 없어 질문은 이어지지 않습니다. 답만 적고 저장할 수 있습니다."}
-              className="min-h-[44px] bg-surface"
-              disabled={thinking || saving}
+              ref={inputRefs[s]}
+              value={drafts[s]}
+              onChange={(e) => setDrafts((d) => ({ ...d, [s]: e.target.value }))}
+              onKeyDown={onKeyDown(s)}
+              rows={1}
+              autoResize
+              placeholder={`${nameOf(s)}의 말 · Enter`}
+              className="min-h-10 bg-surface py-2"
+              disabled={saving}
+              autoFocus={s === "a"}
             />
             <Button
               variant="secondary"
               size="icon"
-              onClick={send}
-              disabled={!draft.trim() || thinking || saving}
-              aria-label="보내기"
+              onClick={() => send(s)}
+              disabled={!drafts[s].trim() || saving}
+              aria-label={`${nameOf(s)}의 말 추가`}
               className="h-10 w-10 shrink-0"
             >
               <CornerDownLeft className="size-4" />
             </Button>
           </div>
-        )}
-        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        ))}
+
+        <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-1.5">
             <Sparkles className="mr-0.5 size-3.5 text-subtle" />
             {AI_MODES.map((m) => (
@@ -178,13 +245,11 @@ export function DialogueComposer({
             ))}
           </div>
           <div className="flex items-center justify-between gap-2 sm:justify-end">
-            <span className="text-micro text-subtle">
-              {userTurns.length}/{DIALOGUE_MAX_TURNS}
-            </span>
-            <Button variant="ghost" size="sm" onClick={reset} disabled={saving}>
+            <span className="whitespace-nowrap text-micro text-subtle" title="⌘/Ctrl + Enter 로 바로 저장">{lines.length}마디</span>
+            <Button variant="ghost" size="sm" onClick={reset} disabled={saving || !hasContent}>
               <RotateCcw className="size-3.5" /> 다시
             </Button>
-            <Button onClick={save} disabled={userTurns.length === 0 || saving} loading={saving}>
+            <Button onClick={save} disabled={!hasContent || saving} loading={saving}>
               기록으로 저장
             </Button>
           </div>

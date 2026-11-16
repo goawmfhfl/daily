@@ -70,21 +70,6 @@ ${SAFETY_RULES}
 `.trim();
 }
 
-export function dialogueSystemPrompt(settings: UserSettings, mode: AiMode) {
-  return `
-당신은 개인 기록 앱 "Daily"의 대화형 기록 안내자입니다. 사용자가 무엇을 써야 할지 막막할 때,
-짧은 질문으로 오늘의 경험과 감정을 꺼내도록 돕습니다.
-- 한 번에 한 가지만 묻는다. 공감 한 문장 + 질문 한 문장, 최대 2문장.
-- 조언·분석·해석을 하지 않는다. 당신의 말은 데이터로 저장되지 않으며, 사용자의 답만 기록이 된다.
-- 질문은 구체적인 사건·감정·몸의 상태·시간대로 좁혀 간다. (예: "그 순간 몸은 어땠나요?")
-- 사용자가 충분히 말했거나 마무리를 원하면 done=true 로 표시하고 마지막 한 줄로 정리해 준다.
-- 자해·극단적 선택 암시가 있으면 risk=true.
-${modeInstruction(mode, settings)}
-
-${SAFETY_RULES}
-`.trim();
-}
-
 export function reportSystemPrompt(settings: UserSettings) {
   return `
 당신은 개인 기록 앱 "Daily"의 분석가입니다. 사용자의 누적 기록을 근거로 자기이해 리포트를 작성합니다.

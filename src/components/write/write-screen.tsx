@@ -50,8 +50,9 @@ export function WriteScreen({
 
   const dateKey = today;
 
-  async function save(text: string, entryMode: "free" | "dialogue") {
-    if (!text.trim()) return;
+  /** 저장에 성공하면 true */
+  async function save(text: string, entryMode: "free" | "dialogue"): Promise<boolean> {
+    if (!text.trim()) return false;
     setPhase("saving");
     try {
       // 저장 결과(태그 포함)는 기록 캐시에 바로 들어가므로 다른 화면을 다시 불러올 필요가 없다
@@ -63,7 +64,7 @@ export function WriteScreen({
       });
       if (res.crisis) {
         router.push(`/safety?entry=${res.entry.id}`);
-        return;
+        return true;
       }
       setSaved(res);
       setContent("");
@@ -77,6 +78,7 @@ export function WriteScreen({
           description: res.ai_error ?? undefined,
         });
       }
+      return true;
     } catch (e) {
       setPhase("idle");
       toast.push({
@@ -84,6 +86,7 @@ export function WriteScreen({
         title: "저장하지 못했습니다",
         description: e instanceof Error ? e.message : undefined,
       });
+      return false;
     }
   }
 
@@ -157,6 +160,7 @@ export function WriteScreen({
                 onChange={(e) => setContent(e.target.value)}
                 onKeyDown={onKeyDown}
                 disabled={composerDisabled}
+                autoResize
                 placeholder="아무렇게나 적어도 괜찮습니다. 감정, 사건, 상황은 저장 후 AI가 태그로 제안합니다."
                 className="min-h-[220px] rounded-none border-0 bg-transparent px-5 py-5 text-[1.0625rem] leading-[1.75] shadow-none focus:ring-0 sm:min-h-[280px]"
                 autoFocus
@@ -181,7 +185,6 @@ export function WriteScreen({
             <DialogueComposer
               aiMode={aiMode}
               onAiModeChange={setAiMode}
-              aiAvailable={aiAvailable}
               saving={phase === "saving"}
               onSave={(text) => save(text, "dialogue")}
             />

@@ -78,8 +78,6 @@ export type PeriodKey = (typeof PERIODS)[number]["key"];
 /** 리포트 생성 최소 기록 수. 이보다 적으면 "아직 말할 수 없다" */
 export const MIN_ENTRIES_FOR_REPORT = 7;
 
-/** 대화형 기록 최대 교환 횟수 */
-export const DIALOGUE_MAX_TURNS = 6;
 
 /**
  * 위기 대응 연락처.

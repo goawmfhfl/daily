@@ -14,14 +14,52 @@ Input.displayName = "Input";
 
 export const Textarea = React.forwardRef<
   HTMLTextAreaElement,
-  React.TextareaHTMLAttributes<HTMLTextAreaElement>
->(({ className, ...props }, ref) => (
-  <textarea
-    ref={ref}
-    className={cn(fieldBase, "py-2.5 leading-relaxed", className)}
-    {...props}
-  />
-));
+  React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+    /** 내용이 넘치면 스크롤 대신 입력창 높이가 아래로 늘어난다 (min-h 는 className 으로) */
+    autoResize?: boolean;
+  }
+>(({ className, autoResize, value, ...props }, ref) => {
+  const innerRef = React.useRef<HTMLTextAreaElement>(null);
+  React.useImperativeHandle(ref, () => innerRef.current!);
+
+  const resize = React.useCallback(() => {
+    const el = innerRef.current;
+    if (!el || !autoResize) return;
+    // 한 번 줄였다가 실제 내용 높이로 맞춘다 (지울 때도 줄어들도록)
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + (el.offsetHeight - el.clientHeight)}px`;
+  }, [autoResize]);
+
+  // 값이 바뀔 때(입력·저장 후 비우기 모두)와 너비가 바뀌어 줄바꿈이 달라질 때 다시 맞춘다
+  React.useLayoutEffect(resize, [resize, value]);
+  React.useEffect(() => {
+    const el = innerRef.current;
+    if (!el || !autoResize || typeof ResizeObserver === "undefined") return;
+    let width = el.offsetWidth;
+    const ro = new ResizeObserver(() => {
+      if (el.offsetWidth !== width) {
+        width = el.offsetWidth;
+        resize();
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [autoResize, resize]);
+
+  return (
+    <textarea
+      ref={innerRef}
+      value={value}
+      className={cn(
+        fieldBase,
+        "py-2.5 leading-relaxed",
+        autoResize && "resize-none overflow-hidden",
+        className,
+      )}
+      {...props}
+    />
+  );
+});
 Textarea.displayName = "Textarea";
 
 export const Select = React.forwardRef<

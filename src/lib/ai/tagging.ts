@@ -2,13 +2,9 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { openai, MODELS } from "@/lib/openai";
 import { clamp } from "@/lib/utils";
 import type { AiMode, UserSettings } from "@/lib/constants";
-import type { TagSuggestion, DialogueMessage } from "@/lib/types";
-import {
-  TagSuggestionSchema,
-  DialogueTurnSchema,
-  type DialogueTurnOut,
-} from "./schemas";
-import { taggingSystemPrompt, dialogueSystemPrompt } from "./prompts";
+import type { TagSuggestion } from "@/lib/types";
+import { TagSuggestionSchema } from "./schemas";
+import { taggingSystemPrompt } from "./prompts";
 
 function reasoningFor(model: string, effort: "minimal" | "low" | "medium") {
   // gpt-5 계열만 reasoning 파라미터를 받는다.
@@ -35,7 +31,11 @@ export async function suggestTagsAndReply(input: {
         role: "user",
         content: [
           `날짜: ${input.entryDate}`,
-          `기록 방식: ${input.mode === "free" ? "자유 메모" : "대화형(사용자 답변만 모음)"}`,
+          `기록 방식: ${
+            input.mode === "free"
+              ? "자유 메모"
+              : "셀프 대화(사용자가 두 화자를 모두 직접 맡아 '이름: 말' 형식으로 스스로와 나눈 대화. 양쪽 모두 사용자 본인의 생각)"
+          }`,
           input.habitNames.length
             ? `사용자가 지속하고 싶은 활동: ${input.habitNames.join(", ")}`
             : "",
@@ -65,36 +65,4 @@ export async function suggestTagsAndReply(input: {
     risk: out.risk,
     reply: out.reply.trim(),
   };
-}
-
-export async function nextDialogueTurn(input: {
-  messages: DialogueMessage[];
-  aiMode: AiMode;
-  settings: UserSettings;
-  turnIndex: number;
-  maxTurns: number;
-}): Promise<DialogueTurnOut> {
-  const model = MODELS.fast;
-  const res = await openai().responses.parse({
-    model,
-    ...reasoningFor(model, "minimal"),
-    input: [
-      { role: "system", content: dialogueSystemPrompt(input.settings, input.aiMode) },
-      ...input.messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-      {
-        role: "developer",
-        content:
-          input.turnIndex >= input.maxTurns - 1
-            ? "이번이 마지막 교환입니다. done=true 로 마무리 한 줄을 돌려주세요."
-            : `지금까지 ${input.turnIndex + 1}/${input.maxTurns} 교환.`,
-      },
-    ],
-    text: { format: zodTextFormat(DialogueTurnSchema, "dialogue_turn") },
-  });
-  const out = res.output_parsed;
-  if (!out) throw new Error("대화 응답을 해석하지 못했습니다.");
-  return { ...out, message: out.message.trim() };
 }
