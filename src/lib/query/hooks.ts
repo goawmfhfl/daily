@@ -300,7 +300,15 @@ export function useCreateHabit() {
 export function useUpdateHabit() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; active?: boolean; name?: string }) =>
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: string;
+      active?: boolean;
+      name?: string;
+      started_at?: string;
+    }) =>
       api<{ habit: HabitRow }>(`/api/habits/${id}`, { method: "PATCH", body }),
     onSuccess: ({ habit }) =>
       qc.setQueryData<HabitRow[]>(qk.habits, (list) =>
