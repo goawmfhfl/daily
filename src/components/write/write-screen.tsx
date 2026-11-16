@@ -21,16 +21,20 @@ import { Badge } from "@/components/ui/badge";
 import { TagConfirm, type ConfirmedTag } from "./tag-confirm";
 import { HabitChecklist } from "./habit-checklist";
 import { DialogueComposer, EMPTY_DIALOGUE, type DialogueDraft } from "./dialogue-composer";
+import { clearDraft, loadDraft, saveDraft } from "@/lib/write-draft";
 
 type Phase = "idle" | "saving" | "confirm";
 type SaveResponse = SaveEntryResponse;
 
 export function WriteScreen({
+  userId,
   today,
   settings,
   aiAvailable,
   recent,
 }: {
+  /** 초안을 사용자별로 보관하기 위한 id */
+  userId: string;
   /** 기기 기준 오늘 (yyyy-MM-dd) */
   today: string;
   settings: UserSettings;
@@ -41,11 +45,22 @@ export function WriteScreen({
   const toast = useToast();
   const createEntry = useCreateEntry();
   const saveTags = useSaveTags();
-  const [mode, setMode] = React.useState<"free" | "dialogue">(settings.default_mode);
-  const [aiMode, setAiMode] = React.useState<AiMode>(settings.default_ai_mode);
-  const [content, setContent] = React.useState("");
+  // 이전에 쓰다 만 초안이 있으면 그대로 이어서 (다른 탭·새로고침 후에도)
+  const [initial] = React.useState(() => loadDraft(userId));
+  const [mode, setMode] = React.useState<"free" | "dialogue">(initial?.mode ?? settings.default_mode);
+  const [aiMode, setAiMode] = React.useState<AiMode>(
+    initial && (AI_MODES as readonly string[]).includes(initial.aiMode)
+      ? initial.aiMode
+      : settings.default_ai_mode,
+  );
+  const [content, setContent] = React.useState(initial?.content ?? "");
   // 자유 메모·셀프 대화 모두 여기서 들고 있어 모드를 오가도 작성 중인 내용이 유지된다
-  const [dialogue, setDialogue] = React.useState<DialogueDraft>(EMPTY_DIALOGUE);
+  const [dialogue, setDialogue] = React.useState<DialogueDraft>(initial?.dialogue ?? EMPTY_DIALOGUE);
+
+  // 입력할 때마다 이 브라우저에 보관 (내용이 비면 지운다)
+  React.useEffect(() => {
+    saveDraft(userId, { mode, aiMode, content, dialogue });
+  }, [userId, mode, aiMode, content, dialogue]);
   const [phase, setPhase] = React.useState<Phase>("idle");
   const [saved, setSaved] = React.useState<SaveResponse | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -65,6 +80,8 @@ export function WriteScreen({
         ai_mode: aiMode,
       });
       if (res.crisis) {
+        // 기록은 이미 저장됐으므로 초안을 지우고 안전 화면으로
+        clearDraft(userId);
         router.push(`/safety?entry=${res.entry.id}`);
         return true;
       }

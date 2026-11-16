@@ -40,6 +40,7 @@ export function checksWindow(today: string) {
 /* ───────────────────────── 조회 함수 ───────────────────────── */
 
 export interface Me {
+  id: string;
   email: string | null;
   aiAvailable: boolean;
   models: { fast: string; report: string; embedding: string };

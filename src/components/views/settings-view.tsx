@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/ui/query-state";
+import { clearAllDrafts } from "@/lib/write-draft";
 
 export function SettingsView() {
   const me = useMe();
@@ -62,7 +63,8 @@ export function SettingsView() {
 
       <DangerZone />
 
-      <form action="/api/auth/signout" method="post" className="pt-2">
+      {/* 로그아웃 전에 이 기기에 보관된 작성 중 초안을 지운다 */}
+      <form action="/api/auth/signout" method="post" className="pt-2" onSubmit={clearAllDrafts}>
         <button className="text-caption text-muted underline-offset-2 hover:text-foreground hover:underline">
           로그아웃
         </button>
