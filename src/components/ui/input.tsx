@@ -25,9 +25,20 @@ export const Textarea = React.forwardRef<
   const resize = React.useCallback(() => {
     const el = innerRef.current;
     if (!el || !autoResize) return;
+    // 높이를 잠깐 auto 로 줄이면 페이지가 짧아져 브라우저가 스크롤을 위로 당긴다.
+    // 화면이 튀지 않도록 스크롤 위치(창 + 스크롤되는 부모들)를 기억했다가 되돌린다
+    const scrolled: [Element, number][] = [];
+    for (let p = el.parentElement; p; p = p.parentElement) {
+      if (p.scrollTop > 0) scrolled.push([p, p.scrollTop]);
+    }
+    const root = document.scrollingElement;
+    if (root && root.scrollTop > 0 && !scrolled.some(([n]) => n === root)) {
+      scrolled.push([root, root.scrollTop]);
+    }
     // 한 번 줄였다가 실제 내용 높이로 맞춘다 (지울 때도 줄어들도록)
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight + (el.offsetHeight - el.clientHeight)}px`;
+    for (const [node, top] of scrolled) node.scrollTop = top;
   }, [autoResize]);
 
   // 값이 바뀔 때(입력·저장 후 비우기 모두)와 너비가 바뀌어 줄바꿈이 달라질 때 다시 맞춘다
