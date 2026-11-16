@@ -2,7 +2,7 @@ import { z } from "zod";
 import { handler, requireUser, json, fail } from "@/lib/api-server";
 import { detectCrisis } from "@/lib/crisis";
 import { AI_MODES } from "@/lib/constants";
-import { getSettings, fetchHabits } from "@/lib/data";
+import { getSettings, fetchHabits, fetchEntries, fetchEntry } from "@/lib/data";
 import { suggestTagsAndReply } from "@/lib/ai/tagging";
 import { embed, hasOpenAI } from "@/lib/openai";
 import type { EntryRow, TagSuggestion } from "@/lib/types";
@@ -12,6 +12,16 @@ const Body = z.object({
   mode: z.enum(["free", "dialogue"]),
   entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   ai_mode: z.enum(AI_MODES).optional(),
+});
+
+/** 클라이언트 캐시가 한 번 받아 모든 화면에서 나눠 쓰는 전체 기록 목록 */
+const ENTRIES_LIMIT = 2000;
+
+/** GET /api/entries — 내 기록 전체(태그 포함), 최신순 */
+export const GET = handler(async () => {
+  const { supabase } = await requireUser();
+  const entries = await fetchEntries(supabase, { limit: ENTRIES_LIMIT });
+  return json({ entries });
 });
 
 /**
@@ -44,7 +54,7 @@ export const POST = handler(async (req) => {
   if (error || !entry) return fail(error?.message ?? "저장 실패", 500);
 
   if (ruleCrisis) {
-    return json({ entry, crisis: true, suggestion: null });
+    return json({ entry: { ...entry, entry_tags: [] }, crisis: true, suggestion: null });
   }
 
   let suggestion: TagSuggestion | null = null;
@@ -71,7 +81,11 @@ export const POST = handler(async (req) => {
 
   if (suggestion?.risk) {
     await supabase.from("entries").update({ risk_flag: true }).eq("id", entry.id);
-    return json({ entry: { ...entry, risk_flag: true }, crisis: true, suggestion: null });
+    return json({
+      entry: { ...entry, risk_flag: true, entry_tags: [] },
+      crisis: true,
+      suggestion: null,
+    });
   }
 
   if (suggestion) {
@@ -101,8 +115,10 @@ export const POST = handler(async (req) => {
       .upsert({ entry_id: entry.id, user_id: user.id, embedding: vector });
   }
 
+  // 클라이언트 캐시에 바로 넣을 수 있도록 태그까지 포함해 돌려준다
+  const saved = await fetchEntry(supabase, entry.id);
   return json({
-    entry: { ...entry, ai_reply: suggestion?.reply ?? null },
+    entry: saved ?? { ...entry, ai_reply: suggestion?.reply ?? null, entry_tags: [] },
     crisis: false,
     suggestion,
     ai_error: aiError,

@@ -26,11 +26,6 @@ export function todayKey(d: Date = new Date()) {
   return format(d, "yyyy-MM-dd");
 }
 
-/** 서버에서 쓰는 "오늘": 서버 타임존과 무관하게 Asia/Seoul 기준 */
-export function todayKeySeoul(d: Date = new Date()) {
-  return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
-}
-
 export function formatDateKo(iso: string, pattern = "M월 d일 (EEE)") {
   try {
     return format(parseISO(iso), pattern, { locale: ko });

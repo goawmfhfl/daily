@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import type { ReportRow, ReportSection, Evidence } from "@/lib/types";
 import { PERIODS } from "@/lib/constants";
-import { api } from "@/lib/api";
+import { useDeleteReport } from "@/lib/query/hooks";
 import { formatDateKo, formatDateTimeKo } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,19 +39,17 @@ export function ReportView({
   const c = report.content_json;
   const period = PERIODS.find((p) => p.key === report.period_key);
   const [confirm, setConfirm] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
+  const deleteReport = useDeleteReport();
+  const busy = deleteReport.isPending;
 
-  async function remove() {
-    setBusy(true);
-    try {
-      await api(`/api/reports/${report.id}`, { method: "DELETE" });
-      toast.push({ tone: "success", title: "리포트를 삭제했습니다" });
-      router.push("/reports");
-      router.refresh();
-    } catch (e) {
-      setBusy(false);
-      toast.push({ tone: "error", title: "삭제 실패", description: e instanceof Error ? e.message : undefined });
-    }
+  function remove() {
+    deleteReport.mutate(report.id, {
+      onSuccess: () => {
+        toast.push({ tone: "success", title: "리포트를 삭제했습니다" });
+        router.push("/reports");
+      },
+      onError: (e) => toast.push({ tone: "error", title: "삭제 실패", description: e.message }),
+    });
   }
 
   return (

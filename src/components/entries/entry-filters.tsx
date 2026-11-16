@@ -35,7 +35,7 @@ export function EntryFilters({
     if (next.event) sp.set("event", next.event);
     if (next.range !== "all") sp.set("range", next.range);
     if (next.semantic) sp.set("semantic", "1");
-    router.push(`/entries${sp.toString() ? `?${sp}` : ""}`);
+    router.push(`/entries${sp.toString() ? `?${sp}` : ""}`, { scroll: false });
   }
 
   const hasAny = f.q || f.emotion || f.event || f.range !== "all";

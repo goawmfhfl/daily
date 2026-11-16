@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Download, Trash2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { useWipeAccount } from "@/lib/query/hooks";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -15,21 +15,18 @@ export function DangerZone() {
   const toast = useToast();
   const [open, setOpen] = React.useState(false);
   const [confirmText, setConfirmText] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
+  const wipeAccount = useWipeAccount();
+  const busy = wipeAccount.isPending;
 
-  async function wipe() {
-    setBusy(true);
-    try {
-      await api("/api/account", { method: "DELETE" });
-      toast.push({ tone: "success", title: "모든 기록을 삭제했습니다" });
-      setOpen(false);
-      router.push("/");
-      router.refresh();
-    } catch (e) {
-      toast.push({ tone: "error", title: "삭제 실패", description: e instanceof Error ? e.message : undefined });
-    } finally {
-      setBusy(false);
-    }
+  function wipe() {
+    wipeAccount.mutate(undefined, {
+      onSuccess: () => {
+        toast.push({ tone: "success", title: "모든 기록을 삭제했습니다" });
+        setOpen(false);
+        router.push("/");
+      },
+      onError: (e) => toast.push({ tone: "error", title: "삭제 실패", description: e.message }),
+    });
   }
 
   return (

@@ -11,7 +11,9 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { prefetchRoute } from "@/lib/query/hooks";
 
 interface NavItem {
   href: string;
@@ -27,6 +29,15 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/entries", label: "기록 목록", icon: ListFilter },
 ];
 
+/** 메뉴에 손이 가는 순간(hover·focus·touch) 그 화면의 데이터를 미리 받아 둔다. 이미 캐시에 있으면 요청하지 않는다 */
+function usePrefetchData() {
+  const qc = useQueryClient();
+  return (href: string) => {
+    const run = () => prefetchRoute(qc, href);
+    return { onMouseEnter: run, onFocus: run, onTouchStart: run };
+  };
+}
+
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(href + "/");
@@ -34,6 +45,7 @@ function isActive(pathname: string, href: string) {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const prefetch = usePrefetchData();
   return (
     <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-surface/60 px-4 py-6 backdrop-blur md:flex">
       <Link href="/" className="flex items-center gap-2.5 px-2">
@@ -51,6 +63,7 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
+              {...prefetch(href)}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex h-10 items-center gap-3 rounded-md px-3 text-body font-medium transition-colors",
@@ -71,6 +84,7 @@ export function Sidebar() {
 
       <Link
         href="/settings"
+        {...prefetch("/settings")}
         aria-current={isActive(pathname, "/settings") ? "page" : undefined}
         className={cn(
           "flex h-10 items-center gap-3 rounded-md px-3 text-body font-medium transition-colors",
@@ -88,6 +102,7 @@ export function Sidebar() {
 
 export function BottomNav() {
   const pathname = usePathname();
+  const prefetch = usePrefetchData();
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/90 backdrop-blur safe-bottom md:hidden">
       <ul className="mx-auto grid max-w-lg grid-cols-5">
@@ -97,6 +112,7 @@ export function BottomNav() {
             <li key={href}>
               <Link
                 href={href}
+                {...prefetch(href)}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex h-14 flex-col items-center justify-center gap-1 text-micro font-medium transition-colors",

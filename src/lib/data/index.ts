@@ -118,16 +118,3 @@ export async function fetchReport(
     .maybeSingle();
   return (data as ReportRow) ?? null;
 }
-
-/** 특정 날짜의 모든 기록 날짜 키 (연속 기록일 계산용) */
-export async function fetchEntryDates(
-  supabase: SupabaseClient,
-  limit = 400,
-): Promise<string[]> {
-  const { data } = await supabase
-    .from("entries")
-    .select("entry_date")
-    .order("entry_date", { ascending: false })
-    .limit(limit);
-  return (data ?? []).map((r) => r.entry_date as string);
-}

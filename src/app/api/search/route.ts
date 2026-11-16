@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { handler, requireUser, json, fail } from "@/lib/api-server";
 import { embed, hasOpenAI } from "@/lib/openai";
-import { fetchEntries } from "@/lib/data";
 
 const Body = z.object({ q: z.string().trim().min(1).max(200) });
 
@@ -17,20 +16,12 @@ export const POST = handler(async (req) => {
 
   const { data, error } = await supabase.rpc("match_entries", {
     query_embedding: vector,
-    match_count: 30,
+    match_count: 40,
   });
   if (error) return fail(error.message, 500);
-  const rows = (data ?? []) as { entry_id: string; similarity: number }[];
-  const ids = rows.map((r) => r.entry_id);
-  if (!ids.length) return json({ entries: [] });
-
-  const entries = await fetchEntries(supabase, { ids });
-  const order = new Map(ids.map((id, i) => [id, i]));
-  entries.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-  return json({
-    entries: entries.map((e) => ({
-      ...e,
-      similarity: rows.find((r) => r.entry_id === e.id)?.similarity ?? 0,
-    })),
-  });
+  // 본문은 클라이언트 캐시에 이미 있으므로 순서와 유사도만 돌려준다
+  const results = ((data ?? []) as { entry_id: string; similarity: number }[]).map(
+    ({ entry_id, similarity }) => ({ entry_id, similarity }),
+  );
+  return json({ results });
 });

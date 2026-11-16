@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { PERIODS, type PeriodKey } from "@/lib/constants";
-import { api } from "@/lib/api";
+import { useGenerateReport } from "@/lib/query/hooks";
 import { todayKey } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
@@ -23,34 +23,26 @@ export function GeneratePanel({
   const router = useRouter();
   const toast = useToast();
   const [period, setPeriod] = React.useState<PeriodKey>("30d");
-  const [busy, setBusy] = React.useState(false);
+  const generateReport = useGenerateReport();
+  const busy = generateReport.isPending;
   const [notice, setNotice] = React.useState<string | null>(null);
 
   const count = counts[period] ?? 0;
   const enough = count >= min;
 
   async function generate() {
-    setBusy(true);
     setNotice(null);
     try {
-      const res = await api<
-        | { insufficient: true; message: string; count: number; required: number }
-        | { insufficient: false; report: { id: string } }
-      >("/api/reports", {
-        method: "POST",
-        body: { period_key: period, today: todayKey() },
-      });
+      // 새 리포트는 리포트 캐시에 바로 들어가므로 상세 화면이 추가 요청 없이 열린다
+      const res = await generateReport.mutateAsync({ period_key: period, today: todayKey() });
       if (res.insufficient) {
         setNotice(res.message);
         return;
       }
       toast.push({ tone: "success", title: "리포트가 생성되었습니다" });
       router.push(`/reports/${res.report.id}`);
-      router.refresh();
     } catch (e) {
       toast.push({ tone: "error", title: "리포트 생성 실패", description: e instanceof Error ? e.message : undefined });
-    } finally {
-      setBusy(false);
     }
   }
 

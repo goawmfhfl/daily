@@ -19,6 +19,12 @@ const Body = z.object({
   today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
+/** GET /api/reports — 리포트 목록(본문 포함), 최신순 */
+export const GET = handler(async () => {
+  const { supabase } = await requireUser();
+  return json({ reports: await fetchReports(supabase, { limit: 50 }) });
+});
+
 /**
  * POST /api/reports — 사용자가 "생성"을 눌렀을 때만 리포트를 만든다.
  * 기록이 MIN_ENTRIES_FOR_REPORT 미만이면 모델을 호출하지 않고 "아직 말할 수 없다".

@@ -1,17 +1,20 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import type { EntryWithTags } from "@/lib/types";
+import { useEntries } from "@/lib/query/hooks";
+import { Skeleton } from "@/components/ui/skeleton";
 import { relativeDayLabel, truncate } from "@/lib/utils";
 import { EmotionDot } from "@/components/ui/chip";
 import { SectionTitle } from "@/components/ui/page-header";
 
-export function RecentEntries({
-  entries,
-  today,
-}: {
-  entries: EntryWithTags[];
-  today: string;
-}) {
+const RECENT_COUNT = 12;
+
+export function RecentEntries({ today }: { today: string }) {
+  const { data, isPending } = useEntries();
+  const entries = React.useMemo(() => (data ?? []).slice(0, RECENT_COUNT), [data]);
+
   return (
     <div className="space-y-3">
       <SectionTitle
@@ -26,7 +29,13 @@ export function RecentEntries({
       >
         최근 기록
       </SectionTitle>
-      {entries.length === 0 ? (
+      {isPending ? (
+        <div className="space-y-2">
+          <Skeleton className="h-14" />
+          <Skeleton className="h-14" />
+          <Skeleton className="h-14" />
+        </div>
+      ) : entries.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border-strong/70 px-4 py-6 text-center text-caption text-muted">
           아직 기록이 없습니다. 첫 기록이 첫 번째 지속력 실험입니다.
         </p>

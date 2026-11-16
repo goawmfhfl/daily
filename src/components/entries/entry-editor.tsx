@@ -13,7 +13,7 @@ import {
   AI_MODE_META,
   type Emotion,
 } from "@/lib/constants";
-import { api } from "@/lib/api";
+import { useDeleteEntry, useSaveTags, useUpdateEntry } from "@/lib/query/hooks";
 import { formatDateKo, formatDateTimeKo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -32,39 +32,35 @@ export function EntryEditor({ entry }: { entry: EntryWithTags }) {
   const [content, setContent] = React.useState(entry.content);
   const [date, setDate] = React.useState(entry.entry_date);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
+  const updateEntry = useUpdateEntry(entry.id);
+  const deleteEntry = useDeleteEntry();
+  const busy = updateEntry.isPending || deleteEntry.isPending;
 
   const tags = entry.entry_tags;
   const get = (kind: string) => tags.filter((t) => t.kind === kind);
 
-  async function saveContent() {
-    setBusy(true);
-    try {
-      await api(`/api/entries/${entry.id}`, {
-        method: "PATCH",
-        body: { content, entry_date: date },
-      });
-      toast.push({ tone: "success", title: "수정되었습니다" });
-      setEditing(false);
-      router.refresh();
-    } catch (e) {
-      toast.push({ tone: "error", title: "수정 실패", description: e instanceof Error ? e.message : undefined });
-    } finally {
-      setBusy(false);
-    }
+  function saveContent() {
+    // 응답으로 받은 기록을 목록·상세 캐시에 바로 반영 (전체 목록을 다시 받지 않는다)
+    updateEntry.mutate(
+      { content, entry_date: date },
+      {
+        onSuccess: () => {
+          toast.push({ tone: "success", title: "수정되었습니다" });
+          setEditing(false);
+        },
+        onError: (e) => toast.push({ tone: "error", title: "수정 실패", description: e.message }),
+      },
+    );
   }
 
-  async function remove() {
-    setBusy(true);
-    try {
-      await api(`/api/entries/${entry.id}`, { method: "DELETE" });
-      toast.push({ tone: "success", title: "삭제되었습니다" });
-      router.push("/entries");
-      router.refresh();
-    } catch (e) {
-      setBusy(false);
-      toast.push({ tone: "error", title: "삭제 실패", description: e instanceof Error ? e.message : undefined });
-    }
+  function remove() {
+    deleteEntry.mutate(entry.id, {
+      onSuccess: () => {
+        toast.push({ tone: "success", title: "삭제되었습니다" });
+        router.push("/entries");
+      },
+      onError: (e) => toast.push({ tone: "error", title: "삭제 실패", description: e.message }),
+    });
   }
 
   return (
@@ -177,8 +173,8 @@ export function EntryEditor({ entry }: { entry: EntryWithTags }) {
 }
 
 function TagEditor({ entry }: { entry: EntryWithTags }) {
-  const router = useRouter();
   const toast = useToast();
+  const saveTags = useSaveTags();
   const tags = entry.entry_tags;
   const pick = (kind: string) => tags.filter((t) => t.kind === kind);
   const srcOf = (kind: string, value: string) =>
@@ -191,7 +187,7 @@ function TagEditor({ entry }: { entry: EntryWithTags }) {
   );
   const [stressor, setStressor] = React.useState(pick("stressor")[0]?.value ?? "");
   const [dirty, setDirty] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
+  const busy = saveTags.isPending;
 
   const toggle = (list: string[], set: (v: string[]) => void, v: string) => {
     set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
@@ -201,8 +197,7 @@ function TagEditor({ entry }: { entry: EntryWithTags }) {
   const aiCount = tags.filter((t) => t.source === "ai").length;
   const userCount = tags.filter((t) => t.source === "user").length;
 
-  async function save() {
-    setBusy(true);
+  function save() {
     const keep = (kinds: string[]) =>
       tags.filter((t) => kinds.includes(t.kind)).map<ConfirmedTag>((t) => ({ kind: t.kind, value: t.value, source: t.source }));
     const next: ConfirmedTag[] = [
@@ -212,16 +207,16 @@ function TagEditor({ entry }: { entry: EntryWithTags }) {
       ...(stressor.trim() ? [{ kind: "stressor" as const, value: stressor.trim(), source: srcOf("stressor", stressor.trim()) }] : []),
       ...keep(["energy", "stress_level", "self_view_positive", "self_view_negative"]),
     ];
-    try {
-      await api(`/api/entries/${entry.id}/tags`, { method: "PUT", body: { tags: next } });
-      toast.push({ tone: "success", title: "태그가 저장되었습니다" });
-      setDirty(false);
-      router.refresh();
-    } catch (e) {
-      toast.push({ tone: "error", title: "태그 저장 실패", description: e instanceof Error ? e.message : undefined });
-    } finally {
-      setBusy(false);
-    }
+    saveTags.mutate(
+      { id: entry.id, tags: next },
+      {
+        onSuccess: () => {
+          toast.push({ tone: "success", title: "태그가 저장되었습니다" });
+          setDirty(false);
+        },
+        onError: (e) => toast.push({ tone: "error", title: "태그 저장 실패", description: e.message }),
+      },
+    );
   }
 
   const dominant = emotions[0] as Emotion | undefined;

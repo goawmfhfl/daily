@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { handler, requireUser, json, fail } from "@/lib/api-server";
 import { AI_MODES } from "@/lib/constants";
-import { saveSettings } from "@/lib/data";
+import { getSettings, saveSettings } from "@/lib/data";
 
 const Patch = z.object({
   comfort_directness: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
@@ -9,6 +9,11 @@ const Patch = z.object({
   default_mode: z.enum(["free", "dialogue"]).optional(),
   default_ai_mode: z.enum(AI_MODES).optional(),
   display_name: z.string().trim().max(40).nullable().optional(),
+});
+
+export const GET = handler(async () => {
+  const { supabase, user } = await requireUser();
+  return json({ settings: await getSettings(supabase, user.id) });
 });
 
 export const PATCH = handler(async (req) => {

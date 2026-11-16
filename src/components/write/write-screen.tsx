@@ -9,14 +9,8 @@ import {
   type AiMode,
   type UserSettings,
 } from "@/lib/constants";
-import type {
-  EntryRow,
-  HabitRow,
-  HabitCheckRow,
-  TagSuggestion,
-} from "@/lib/types";
-import { api } from "@/lib/api";
-import { formatDateKo, todayKey } from "@/lib/utils";
+import { formatDateKo } from "@/lib/utils";
+import { useCreateEntry, useSaveTags, type SaveEntryResponse } from "@/lib/query/hooks";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
@@ -29,31 +23,24 @@ import { HabitChecklist } from "./habit-checklist";
 import { DialogueComposer } from "./dialogue-composer";
 
 type Phase = "idle" | "saving" | "confirm";
-
-interface SaveResponse {
-  entry: EntryRow;
-  crisis: boolean;
-  suggestion: TagSuggestion | null;
-  ai_error?: string | null;
-}
+type SaveResponse = SaveEntryResponse;
 
 export function WriteScreen({
   today,
   settings,
-  habits,
-  todayChecks,
   aiAvailable,
   recent,
 }: {
+  /** 기기 기준 오늘 (yyyy-MM-dd) */
   today: string;
   settings: UserSettings;
-  habits: HabitRow[];
-  todayChecks: HabitCheckRow[];
   aiAvailable: boolean;
   recent: React.ReactNode;
 }) {
   const router = useRouter();
   const toast = useToast();
+  const createEntry = useCreateEntry();
+  const saveTags = useSaveTags();
   const [mode, setMode] = React.useState<"free" | "dialogue">(settings.default_mode);
   const [aiMode, setAiMode] = React.useState<AiMode>(settings.default_ai_mode);
   const [content, setContent] = React.useState("");
@@ -61,20 +48,18 @@ export function WriteScreen({
   const [saved, setSaved] = React.useState<SaveResponse | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
-  // 서버 렌더는 Asia/Seoul 기준 today, 클라이언트에서는 기기 날짜(자정 넘김 대응)
-  const dateKey = React.useSyncExternalStore(
-    subscribeNoop,
-    () => todayKey(),
-    () => today,
-  );
+  const dateKey = today;
 
   async function save(text: string, entryMode: "free" | "dialogue") {
     if (!text.trim()) return;
     setPhase("saving");
     try {
-      const res = await api<SaveResponse>("/api/entries", {
-        method: "POST",
-        body: { content: text, mode: entryMode, entry_date: dateKey, ai_mode: aiMode },
+      // 저장 결과(태그 포함)는 기록 캐시에 바로 들어가므로 다른 화면을 다시 불러올 필요가 없다
+      const res = await createEntry.mutateAsync({
+        content: text,
+        mode: entryMode,
+        entry_date: dateKey,
+        ai_mode: aiMode,
       });
       if (res.crisis) {
         router.push(`/safety?entry=${res.entry.id}`);
@@ -91,7 +76,6 @@ export function WriteScreen({
           title: "기록이 저장되었습니다",
           description: res.ai_error ?? undefined,
         });
-        router.refresh();
       }
     } catch (e) {
       setPhase("idle");
@@ -106,10 +90,7 @@ export function WriteScreen({
   async function confirmTags(tags: ConfirmedTag[]) {
     if (!saved) return;
     try {
-      await api(`/api/entries/${saved.entry.id}/tags`, {
-        method: "PUT",
-        body: { tags },
-      });
+      await saveTags.mutateAsync({ id: saved.entry.id, tags });
       toast.push({ tone: "success", title: "태그가 저장되었습니다" });
     } catch (e) {
       toast.push({
@@ -120,7 +101,6 @@ export function WriteScreen({
     } finally {
       setPhase("idle");
       setSaved(null);
-      router.refresh();
       textareaRef.current?.focus();
     }
   }
@@ -128,7 +108,6 @@ export function WriteScreen({
   function skipTags() {
     setPhase("idle");
     setSaved(null);
-    router.refresh();
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -226,14 +205,10 @@ export function WriteScreen({
         <div className="hidden space-y-6 lg:block">
           <AfterSave saved={saved} phase={phase} onConfirm={confirmTags} onSkip={skipTags} />
         </div>
-        <HabitChecklist habits={habits} initialChecks={todayChecks} dateKey={dateKey} />
+        <HabitChecklist dateKey={dateKey} />
       </aside>
     </div>
   );
-}
-
-function subscribeNoop() {
-  return () => {};
 }
 
 function AiModeChips({

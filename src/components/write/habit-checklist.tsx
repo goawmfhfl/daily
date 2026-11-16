@@ -3,48 +3,53 @@
 import * as React from "react";
 import Link from "next/link";
 import { Check, Plus } from "lucide-react";
-import type { HabitRow, HabitCheckRow } from "@/lib/types";
-import { api } from "@/lib/api";
+import { useHabits, useHabitChecks, useToggleHabitCheck } from "@/lib/query/hooks";
 import { cn } from "@/lib/utils";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export function HabitChecklist({
-  habits,
-  initialChecks,
-  dateKey,
-}: {
-  habits: HabitRow[];
-  initialChecks: HabitCheckRow[];
-  dateKey: string;
-}) {
+export function HabitChecklist({ dateKey }: { dateKey: string }) {
   const toast = useToast();
-  const [done, setDone] = React.useState<Set<string>>(
-    () => new Set(initialChecks.filter((c) => c.done).map((c) => c.habit_id)),
+  const habitsQuery = useHabits();
+  const checksQuery = useHabitChecks(dateKey);
+  const toggleCheck = useToggleHabitCheck(dateKey);
+
+  const habits = React.useMemo(
+    () => (habitsQuery.data ?? []).filter((h) => h.active),
+    [habitsQuery.data],
+  );
+  const done = React.useMemo(
+    () =>
+      new Set(
+        (checksQuery.data ?? [])
+          .filter((c) => c.entry_date === dateKey && c.done)
+          .map((c) => c.habit_id),
+      ),
+    [checksQuery.data, dateKey],
   );
 
-  async function toggle(habitId: string) {
-    const next = !done.has(habitId);
-    setDone((prev) => {
-      const s = new Set(prev);
-      if (next) s.add(habitId);
-      else s.delete(habitId);
-      return s;
-    });
-    try {
-      await api("/api/habit-checks", {
-        method: "PUT",
-        body: { habit_id: habitId, entry_date: dateKey, done: next },
-      });
-    } catch (e) {
-      setDone((prev) => {
-        const s = new Set(prev);
-        if (next) s.delete(habitId);
-        else s.add(habitId);
-        return s;
-      });
-      toast.push({ tone: "error", title: "체크를 저장하지 못했습니다", description: e instanceof Error ? e.message : undefined });
-    }
+  function toggle(habitId: string) {
+    // 캐시를 먼저 바꾸고(낙관적 업데이트) 실패하면 되돌린다
+    toggleCheck.mutate(
+      { habit_id: habitId, entry_date: dateKey, done: !done.has(habitId) },
+      {
+        onError: (e) =>
+          toast.push({ tone: "error", title: "체크를 저장하지 못했습니다", description: e.message }),
+      },
+    );
+  }
+
+  if (habitsQuery.isPending || checksQuery.isPending) {
+    return (
+      <Card>
+        <CardBody className="space-y-3">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-8" />
+          <Skeleton className="h-8" />
+        </CardBody>
+      </Card>
+    );
   }
 
   return (

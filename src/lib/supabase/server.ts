@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 export function env() {
@@ -34,19 +33,6 @@ export async function createClient(): Promise<SupabaseClient> {
       },
     },
   });
-}
-
-/** 페이지용: 미로그인 시 /login 으로 */
-export async function requireUserPage(): Promise<{
-  supabase: SupabaseClient;
-  user: User;
-}> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  return { supabase, user };
 }
 
 /** API용: 미로그인 시 null */

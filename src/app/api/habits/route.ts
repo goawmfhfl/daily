@@ -1,10 +1,16 @@
 import { z } from "zod";
 import { handler, requireUser, json, fail } from "@/lib/api-server";
 import { todayKey } from "@/lib/utils";
+import { fetchHabits } from "@/lib/data";
 
 const Body = z.object({
   name: z.string().trim().min(1).max(60),
   started_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+export const GET = handler(async () => {
+  const { supabase } = await requireUser();
+  return json({ habits: await fetchHabits(supabase) });
 });
 
 export const POST = handler(async (req) => {

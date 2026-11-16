@@ -1,10 +1,19 @@
 import { z } from "zod";
 import { handler, requireUser, json, fail } from "@/lib/api-server";
 import { embed } from "@/lib/openai";
+import { fetchEntry } from "@/lib/data";
 
 const Patch = z.object({
   content: z.string().trim().min(1).max(20000).optional(),
   entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+export const GET = handler(async (_req, { params }) => {
+  const { id } = await params;
+  const { supabase } = await requireUser();
+  const entry = await fetchEntry(supabase, id);
+  if (!entry) return fail("기록을 찾을 수 없습니다.", 404);
+  return json({ entry });
 });
 
 export const PATCH = handler(async (req, { params }) => {

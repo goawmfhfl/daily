@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { AI_MODES, AI_MODE_META, type AiMode, type UserSettings } from "@/lib/constants";
-import { api } from "@/lib/api";
+import { useSaveSettings } from "@/lib/query/hooks";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
 import { Chip } from "@/components/ui/chip";
@@ -13,29 +12,26 @@ import { useToast } from "@/components/ui/toast";
 type Level = 1 | 2 | 3;
 
 export function SettingsForm({ initial }: { initial: UserSettings }) {
-  const router = useRouter();
   const toast = useToast();
+  const saveSettings = useSaveSettings();
   const [s, setS] = React.useState(initial);
   const [dirty, setDirty] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
+  const busy = saveSettings.isPending;
 
   function patch(p: Partial<UserSettings>) {
     setS((prev) => ({ ...prev, ...p }));
     setDirty(true);
   }
 
-  async function save() {
-    setBusy(true);
-    try {
-      await api("/api/settings", { method: "PATCH", body: s });
-      toast.push({ tone: "success", title: "설정이 저장되었습니다" });
-      setDirty(false);
-      router.refresh();
-    } catch (e) {
-      toast.push({ tone: "error", title: "저장 실패", description: e instanceof Error ? e.message : undefined });
-    } finally {
-      setBusy(false);
-    }
+  function save() {
+    // 저장된 설정은 캐시에 바로 반영되어 기록 화면의 기본 모드에도 곧바로 적용된다
+    saveSettings.mutate(s, {
+      onSuccess: () => {
+        toast.push({ tone: "success", title: "설정이 저장되었습니다" });
+        setDirty(false);
+      },
+      onError: (e) => toast.push({ tone: "error", title: "저장 실패", description: e.message }),
+    });
   }
 
   return (

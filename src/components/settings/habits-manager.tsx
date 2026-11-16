@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Pause, Play, Trash2 } from "lucide-react";
-import type { HabitRow } from "@/lib/types";
-import { api } from "@/lib/api";
+import { useCreateHabit, useDeleteHabit, useHabits, useUpdateHabit } from "@/lib/query/hooks";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateKo } from "@/lib/utils";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,22 +11,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 
-export function HabitsManager({ habits }: { habits: HabitRow[] }) {
-  const router = useRouter();
+export function HabitsManager() {
   const toast = useToast();
+  const habitsQuery = useHabits();
+  const createHabit = useCreateHabit();
+  const updateHabit = useUpdateHabit();
+  const deleteHabit = useDeleteHabit();
   const [name, setName] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
+  const busy = createHabit.isPending || updateHabit.isPending || deleteHabit.isPending;
+  const habits = habitsQuery.data ?? [];
 
   async function run(fn: () => Promise<unknown>, ok: string) {
-    setBusy(true);
     try {
       await fn();
       toast.push({ tone: "success", title: ok });
-      router.refresh();
     } catch (e) {
       toast.push({ tone: "error", title: "실패", description: e instanceof Error ? e.message : undefined });
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -43,7 +42,7 @@ export function HabitsManager({ habits }: { habits: HabitRow[] }) {
             e.preventDefault();
             if (!name.trim()) return;
             void run(
-              () => api("/api/habits", { method: "POST", body: { name: name.trim() } }).then(() => setName("")),
+              () => createHabit.mutateAsync(name.trim()).then(() => setName("")),
               "활동을 추가했습니다",
             );
           }}
@@ -55,7 +54,12 @@ export function HabitsManager({ habits }: { habits: HabitRow[] }) {
           </Button>
         </form>
 
-        {habits.length === 0 ? (
+        {habitsQuery.isPending ? (
+          <div className="space-y-2">
+            <Skeleton className="h-14" />
+            <Skeleton className="h-14" />
+          </div>
+        ) : habits.length === 0 ? (
           <p className="text-caption text-muted">아직 없습니다. 작게 시작하세요. 하나면 충분합니다.</p>
         ) : (
           <ul className="divide-y divide-border rounded-lg border border-border">
@@ -73,7 +77,7 @@ export function HabitsManager({ habits }: { habits: HabitRow[] }) {
                   disabled={busy}
                   onClick={() =>
                     run(
-                      () => api(`/api/habits/${h.id}`, { method: "PATCH", body: { active: !h.active } }),
+                      () => updateHabit.mutateAsync({ id: h.id, active: !h.active }),
                       h.active ? "활동을 중단했습니다" : "활동을 재개했습니다",
                     )
                   }
@@ -88,7 +92,7 @@ export function HabitsManager({ habits }: { habits: HabitRow[] }) {
                   className="text-danger hover:text-danger"
                   onClick={() => {
                     if (!window.confirm(`"${h.name}" 활동과 체크 기록을 모두 삭제할까요?`)) return;
-                    void run(() => api(`/api/habits/${h.id}`, { method: "DELETE" }), "활동을 삭제했습니다");
+                    void run(() => deleteHabit.mutateAsync(h.id), "활동을 삭제했습니다");
                   }}
                 >
                   <Trash2 className="size-4" />
