@@ -108,7 +108,9 @@ export default async function EntriesPage({ searchParams }: PageProps<"/entries"
         />
       ) : (
         <div className="space-y-3">
-          <p className="text-caption text-subtle">{entries.length}건</p>
+          <p className="text-caption text-subtle">
+            {entries.length}건{semantic && q && !semanticNote ? " · 의미 유사도 순" : ""}
+          </p>
           <ul className="space-y-3">
             {entries.map((e) => (
               <li key={e.id}>
