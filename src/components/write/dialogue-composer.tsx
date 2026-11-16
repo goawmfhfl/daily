@@ -16,6 +16,14 @@ interface Line {
   text: string;
 }
 
+/** 작성 중인 셀프 대화. 모드를 바꿔도 사라지지 않도록 부모(WriteScreen)가 들고 있다 */
+export interface DialogueDraft {
+  lines: Line[];
+  drafts: Record<Speaker, string>;
+}
+
+export const EMPTY_DIALOGUE: DialogueDraft = { lines: [], drafts: { a: "", b: "" } };
+
 const DEFAULT_NAMES: Record<Speaker, string> = { a: "A", b: "B" };
 
 /** 역할 예시: 누르면 두 화자의 이름이 바뀐다 */
@@ -48,11 +56,15 @@ function loadNames(): Record<Speaker, string> {
  * - 저장하면 "이름: 말" 형식의 대화 전체가 하나의 기록이 된다
  */
 export function DialogueComposer({
+  draft,
+  onDraftChange,
   aiMode,
   onAiModeChange,
   saving,
   onSave,
 }: {
+  draft: DialogueDraft;
+  onDraftChange: React.Dispatch<React.SetStateAction<DialogueDraft>>;
   aiMode: AiMode;
   onAiModeChange: (m: AiMode) => void;
   saving: boolean;
@@ -61,10 +73,12 @@ export function DialogueComposer({
 }) {
   // 마지막에 쓴 역할 이름을 기억 (이 기기에서만). 이 화면은 브라우저에서만 그려진다
   const [names, setNames] = React.useState<Record<Speaker, string>>(loadNames);
-  const [lines, setLines] = React.useState<Line[]>([]);
-  const [drafts, setDrafts] = React.useState<Record<Speaker, string>>({ a: "", b: "" });
+  const { lines, drafts } = draft;
+  const setLines = (u: React.SetStateAction<Line[]>) =>
+    onDraftChange((d) => ({ ...d, lines: typeof u === "function" ? u(d.lines) : u }));
+  const setDrafts = (u: React.SetStateAction<Record<Speaker, string>>) =>
+    onDraftChange((d) => ({ ...d, drafts: typeof u === "function" ? u(d.drafts) : u }));
   const inputRefs = { a: React.useRef<HTMLTextAreaElement>(null), b: React.useRef<HTMLTextAreaElement>(null) };
-  const idRef = React.useRef(0);
   const bottomRef = React.useRef<HTMLDivElement>(null);
 
   function updateNames(next: Record<Speaker, string>) {
@@ -86,7 +100,7 @@ export function DialogueComposer({
   function send(speaker: Speaker) {
     const text = drafts[speaker].trim();
     if (!text || saving) return;
-    setLines((prev) => [...prev, { id: ++idRef.current, speaker, text }]);
+    setLines((prev) => [...prev, { id: Math.max(0, ...prev.map((l) => l.id)) + 1, speaker, text }]);
     setDrafts((d) => ({ ...d, [speaker]: "" }));
     // 상대 역할로 차례를 넘긴다
     inputRefs[other(speaker)].current?.focus();

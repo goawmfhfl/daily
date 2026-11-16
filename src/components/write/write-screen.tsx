@@ -20,7 +20,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TagConfirm, type ConfirmedTag } from "./tag-confirm";
 import { HabitChecklist } from "./habit-checklist";
-import { DialogueComposer } from "./dialogue-composer";
+import { DialogueComposer, EMPTY_DIALOGUE, type DialogueDraft } from "./dialogue-composer";
 
 type Phase = "idle" | "saving" | "confirm";
 type SaveResponse = SaveEntryResponse;
@@ -44,6 +44,8 @@ export function WriteScreen({
   const [mode, setMode] = React.useState<"free" | "dialogue">(settings.default_mode);
   const [aiMode, setAiMode] = React.useState<AiMode>(settings.default_ai_mode);
   const [content, setContent] = React.useState("");
+  // 자유 메모·셀프 대화 모두 여기서 들고 있어 모드를 오가도 작성 중인 내용이 유지된다
+  const [dialogue, setDialogue] = React.useState<DialogueDraft>(EMPTY_DIALOGUE);
   const [phase, setPhase] = React.useState<Phase>("idle");
   const [saved, setSaved] = React.useState<SaveResponse | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -183,6 +185,8 @@ export function WriteScreen({
             </CardBody>
           ) : (
             <DialogueComposer
+              draft={dialogue}
+              onDraftChange={setDialogue}
               aiMode={aiMode}
               onAiModeChange={setAiMode}
               saving={phase === "saving"}
