@@ -197,7 +197,7 @@ export function WriteScreen({
               </button>
             </div>
             <h1 className="mt-0.5 text-title font-semibold tracking-tight sm:text-display">
-              오늘은 어떤 하루였나요
+              지금 떠오르는 걸 적어두세요
             </h1>
           </div>
           <Segmented<"free" | "dialogue">
