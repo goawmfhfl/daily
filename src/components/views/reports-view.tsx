@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { PageSkeleton, QueryError } from "@/components/ui/query-state";
 import { GeneratePanel } from "@/components/reports/generate-panel";
+import { RhythmGuide } from "@/components/reports/rhythm-guide";
 
 export function ReportsView() {
   const today = useToday();
@@ -42,6 +43,8 @@ export function ReportsView() {
         title="리포트"
         description="분석은 내가 누를 때 만들어집니다. 모든 주장에는 근거 기록이 붙습니다."
       />
+
+      <RhythmGuide reports={reports} today={today} />
 
       <GeneratePanel
         counts={counts}
