@@ -19,6 +19,7 @@ import type {
   HabitRow,
   ReportRow,
   TagSuggestion,
+  BriefResponse,
 } from "@/lib/types";
 import type { ConfirmedTag } from "@/components/write/tag-confirm";
 import { qk } from "./keys";
@@ -128,6 +129,26 @@ export function useSemanticSearch(q: string, enabled: boolean) {
   });
 }
 
+/**
+ * 어제의 나: 필요할 때(자동 표시 대상이거나 버튼을 눌렀을 때)만 받는다.
+ * 서버가 하루 한 번 만들어 저장해 두므로, 다시 받아도 AI 를 또 부르지 않는다
+ */
+export function useDailyBrief(today: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.brief(today ?? ""),
+    queryFn: () => api<BriefResponse>(`/api/briefs?today=${today}`),
+    enabled: enabled && !!today,
+    staleTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+/** 지난 기록이 바뀌면 브리핑도 다시 확인하게 */
+function staleBrief(qc: QueryClient) {
+  void qc.invalidateQueries({ queryKey: ["brief"], refetchType: "none" });
+}
+
 /* ───────────────────────── 탭 이동 전 미리 받기 ───────────────────────── */
 
 /** 메뉴에 마우스를 올리거나 터치하는 순간 그 화면에 필요한 데이터만 미리 받는다 */
@@ -225,7 +246,10 @@ export function useUpdateEntry(id: string) {
       api<{ entry: EntryRow }>(`/api/entries/${id}`, { method: "PATCH", body }),
     onSuccess: ({ entry }) => patchEntry(qc, id, (e) => ({ ...e, ...entry })),
     // 내용이 바뀌면 의미 검색 결과(임베딩)도 달라지므로 다음 검색 때 다시 받는다
-    onSettled: () => qc.invalidateQueries({ queryKey: ["entries", "semantic"], refetchType: "none" }),
+    onSettled: () => {
+      staleBrief(qc);
+      return qc.invalidateQueries({ queryKey: ["entries", "semantic"], refetchType: "none" });
+    },
   });
 }
 
@@ -237,6 +261,7 @@ export function useDeleteEntry() {
       qc.setQueryData<EntryWithTags[]>(qk.entries, (list) => list?.filter((e) => e.id !== id));
       // 보고 있던 상세 화면이 깜빡이지 않도록 지우지 않고 "오래됨"으로만 표시 (다시 열면 새로 확인)
       void qc.invalidateQueries({ queryKey: qk.entry(id), refetchType: "none" });
+      staleBrief(qc);
     },
   });
 }
@@ -247,6 +272,7 @@ export function useSaveTags() {
     mutationFn: ({ id, tags }: { id: string; tags: ConfirmedTag[] }) =>
       api<{ tags: EntryTagRow[] }>(`/api/entries/${id}/tags`, { method: "PUT", body: { tags } }),
     onSuccess: ({ tags }, { id }) => patchEntry(qc, id, (e) => ({ ...e, entry_tags: tags })),
+    onSettled: () => staleBrief(qc),
   });
 }
 
@@ -354,6 +380,7 @@ export function useWipeAccount() {
       qc.removeQueries({ queryKey: ["entries", "detail"] });
       qc.removeQueries({ queryKey: ["entries", "semantic"] });
       qc.removeQueries({ queryKey: ["reports", "detail"] });
+      qc.removeQueries({ queryKey: ["brief"] });
     },
   });
 }

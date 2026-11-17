@@ -109,6 +109,8 @@ export type UserSettings = {
   default_mode: "free" | "dialogue";
   default_ai_mode: AiMode;
   display_name: string | null;
+  /** 하루 첫 방문 때 "어제의 나" 브리핑을 자동으로 띄울지 */
+  morning_brief: boolean;
 };
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -117,4 +119,5 @@ export const DEFAULT_SETTINGS: UserSettings = {
   default_mode: "free",
   default_ai_mode: "comfort",
   display_name: null,
+  morning_brief: true,
 };

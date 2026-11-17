@@ -127,3 +127,48 @@ export interface TagSuggestion {
   risk: boolean;
   reply: string;
 }
+
+/* ───────── 어제의 나 (아침 브리핑) ───────── */
+
+export interface BriefItem {
+  /** 짧은 한 줄 */
+  title: string;
+  /** 기록 본문에서 그대로 인용한 구절 (원문에 없으면 null) */
+  quote: string | null;
+  entry_id: string | null;
+}
+
+export interface BriefContent {
+  summary: string;
+  joys: BriefItem[];
+  stresses: BriefItem[];
+  healings: BriefItem[];
+  tip: string;
+  /** 아래는 AI 가 아니라 태그·체크에서 계산 */
+  emotions: string[];
+  stress_level: number | null;
+  energy: number | null;
+  habits_done: string[];
+  habits_total: number;
+}
+
+export interface DailyBriefRow {
+  id: string;
+  user_id: string;
+  target_date: string;
+  content_json: BriefContent;
+  model: string;
+  entry_count: number;
+  source_updated_at: string;
+  created_at: string;
+}
+
+/** GET /api/briefs 응답 */
+export type BriefResponse =
+  | { status: "ok"; target_date: string; entry_ids: string[]; brief: DailyBriefRow }
+  /** 위기 표시가 있던 날: 분석 대신 안부만 */
+  | { status: "care"; target_date: string; entry_ids: string[] }
+  /** OPENAI 키가 없어 만들 수 없음 */
+  | { status: "no_ai"; target_date: string; entry_ids: string[] }
+  /** 오늘 이전 기록이 없음 */
+  | { status: "none" };

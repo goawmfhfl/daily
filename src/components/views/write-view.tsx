@@ -2,7 +2,6 @@
 
 import { useMe, useSettings, useToday } from "@/lib/query/hooks";
 import { WriteScreen } from "@/components/write/write-screen";
-import { RecentEntries } from "@/components/write/recent-entries";
 import { PageSkeleton, QueryError } from "@/components/ui/query-state";
 
 export function WriteView() {
@@ -22,7 +21,6 @@ export function WriteView() {
       today={today}
       settings={settings.data}
       aiAvailable={me.data.aiAvailable}
-      recent={<RecentEntries today={today} />}
     />
   );
 }

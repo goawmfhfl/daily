@@ -9,6 +9,7 @@ const Patch = z.object({
   default_mode: z.enum(["free", "dialogue"]).optional(),
   default_ai_mode: z.enum(AI_MODES).optional(),
   display_name: z.string().trim().max(40).nullable().optional(),
+  morning_brief: z.boolean().optional(),
 });
 
 export const GET = handler(async () => {

@@ -76,6 +76,16 @@ export function SettingsForm({ initial }: { initial: UserSettings }) {
             ]}
           />
         </Row>
+        <Row label="아침 브리핑 (어제의 나)" hint="하루 첫 방문 때 지난 기록 요약을 띄웁니다">
+          <Segmented<"on" | "off">
+            value={s.morning_brief ? "on" : "off"}
+            onChange={(v) => patch({ morning_brief: v === "on" })}
+            options={[
+              { value: "on", label: "자동으로 띄우기" },
+              { value: "off", label: "버튼으로만" },
+            ]}
+          />
+        </Row>
         <Row label="저장 직후 AI 응답의 기본 모드">
           <div className="flex flex-wrap gap-1.5">
             {AI_MODES.map((m: AiMode) => (

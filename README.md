@@ -33,7 +33,7 @@
 
 ### 2. 데이터베이스
 
-Supabase SQL Editor 에서 [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) 을 실행합니다. (또는 Supabase CLI: `supabase db push`)
+Supabase SQL Editor 에서 [`supabase/migrations`](supabase/migrations) 의 SQL 을 번호 순서대로(0001 → 0002 → 0003) 실행합니다. (또는 Supabase CLI: `supabase db push`)
 
 - 모든 표에 `user_id` + 행 단위 보안(RLS). 본인 행만 읽고 쓸 수 있음
 - `vector` 확장 사용 (의미 기반 검색). Supabase 는 기본 제공
@@ -54,7 +54,7 @@ pnpm dev
 
 | 경로 | 화면 | 핵심 |
 | --- | --- | --- |
-| `/` | 기록 | 자유 메모(입력창이 내용만큼 늘어남) / 셀프 대화형(A·B 두 화자를 직접 맡음) 전환, AI 모드(위로·정리·분석·코칭), 저장 후 태그 확인, 지속 활동 체크. 데스크톱 3단(최근 기록 · 입력 · 태그/AI) |
+| `/` | 기록 | 자유 메모(입력창이 내용만큼 늘어남) / 셀프 대화형(A·B 두 화자를 직접 맡음) 전환, AI 모드(위로·정리·분석·코칭), 저장 후 태그 확인, 지속 활동 체크, 하루 첫 방문 때 "어제의 나" 브리핑 팝업. 데스크톱 2단(입력 · 태그/AI·지속 활동) |
 | `/dashboard` | 대시보드 | 연속 기록일, 최근 14일 감정 흐름, 감정 분포, 스트레스 상위 요인, 지속 활동 체크율, 최신 리포트 |
 | `/timeline` | 타임라인 | 주·월 단위 감정 구성과 평균 강도, 리포트가 찾은 변화 구간, 주요 사건 |
 | `/reports` | 리포트 | 기간 선택(7일/30일/전체) → 생성, 7개 섹션 + 근거 링크, 이전 리포트 비교 |
@@ -68,6 +68,7 @@ pnpm dev
 - **태깅 + 한 줄 응답** (`POST /api/entries`): 저장 1건당 1회 호출. Structured Outputs 로 감정·강도·사건·스트레스 원인·에너지·자기 평가 문장·위기 플래그·응답을 한 번에 받음
 - **셀프 대화형**: AI 없이 내가 A·B 두 화자를 모두 맡아 스스로와 대화. 저장 시 `이름: 말` 형식의 대화 전체가 한 건의 기록이 되고, 이후 태깅·응답은 자유 메모와 같다
 - **리포트** (`POST /api/reports`): 기록 7건 미만이면 모델을 호출하지 않고 "아직 말할 수 없다". 근거(`ref`)는 서버에서 실제 `entry_id` 로 치환·검증. 같은 기간을 다시 생성하면 직전 리포트와 비교
+- **어제의 나** (`GET /api/briefs`): 오늘 이전에 기록한 가장 최근 하루를 가벼운 모델로 요약(기뻤던 것·스트레스·힐링·오늘을 위한 한마디). `daily_briefs` 에 저장해 하루 한 번만 호출하고, 그날 기록이 바뀌면 다시 생성. 인용은 원문에 실제로 있을 때만 남기고, 위기 표시가 있던 날은 분석 대신 안부만
 - **프롬프트 캐싱**: 시스템 지시문 → 누적 기록(날짜 오름차순) → 요청별 지시 순서로 접두사를 고정해 OpenAI 자동 캐싱을 유도
 - **안전장치**: 규칙 기반 위기 표현 감지 (`src/lib/crisis.ts`) + AI `risk` 플래그. 감지 시 태깅·응답·리포트 근거에서 제외. 진단·성격 단정·기록에 없는 추측 금지, 부정 패턴에는 반례 필수 (`src/lib/ai/prompts.ts`)
 
@@ -81,7 +82,7 @@ pnpm dev
 
 ## 데이터 모델
 
-`entries`(원문) ↔ `entry_tags`(태그, `source` 로 AI/사용자 구분) · `habits` / `habit_checks` · `reports` / `report_evidence` · `entry_embeddings` · `experiences`(이력서 단계, 스키마만)
+`entries`(원문) ↔ `entry_tags`(태그, `source` 로 AI/사용자 구분) · `habits` / `habit_checks` · `reports` / `report_evidence` · `daily_briefs`(어제의 나) · `entry_embeddings` · `experiences`(이력서 단계, 스키마만)
 
 ## 로드맵 대응
 

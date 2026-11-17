@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { MessageCircle, PenLine, Sparkles } from "lucide-react";
+import { MessageCircle, PenLine, Sparkles, Sunrise } from "lucide-react";
 import {
   AI_MODES,
   AI_MODE_META,
@@ -10,7 +10,7 @@ import {
   type UserSettings,
 } from "@/lib/constants";
 import { formatDateKo } from "@/lib/utils";
-import { useCreateEntry, useSaveTags, type SaveEntryResponse } from "@/lib/query/hooks";
+import { useCreateEntry, useDailyBrief, useSaveTags, type SaveEntryResponse } from "@/lib/query/hooks";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
@@ -22,6 +22,26 @@ import { TagConfirm, type ConfirmedTag } from "./tag-confirm";
 import { HabitChecklist } from "./habit-checklist";
 import { DialogueComposer, EMPTY_DIALOGUE, type DialogueDraft } from "./dialogue-composer";
 import { clearDraft, loadDraft, saveDraft } from "@/lib/write-draft";
+import { DailyBriefDialog } from "./daily-brief-dialog";
+
+const BRIEF_SEEN = "daily:brief-seen:";
+
+/** 이 사용자가 "어제의 나"를 마지막으로 자동으로 본 날 */
+function briefSeenOn(userId: string) {
+  try {
+    return window.localStorage.getItem(BRIEF_SEEN + userId);
+  } catch {
+    return null;
+  }
+}
+
+function markBriefSeen(userId: string, today: string) {
+  try {
+    window.localStorage.setItem(BRIEF_SEEN + userId, today);
+  } catch {
+    // 저장소를 못 쓰면 다음 방문에 또 뜰 뿐
+  }
+}
 
 type Phase = "idle" | "saving" | "confirm";
 type SaveResponse = SaveEntryResponse;
@@ -31,7 +51,6 @@ export function WriteScreen({
   today,
   settings,
   aiAvailable,
-  recent,
 }: {
   /** 초안을 사용자별로 보관하기 위한 id */
   userId: string;
@@ -39,7 +58,6 @@ export function WriteScreen({
   today: string;
   settings: UserSettings;
   aiAvailable: boolean;
-  recent: React.ReactNode;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -64,6 +82,22 @@ export function WriteScreen({
   const [phase, setPhase] = React.useState<Phase>("idle");
   const [saved, setSaved] = React.useState<SaveResponse | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // 어제의 나: 설정이 켜져 있고 오늘 아직 안 봤으면 처음 들어올 때 한 번 자동으로 띄운다
+  const [autoBrief] = React.useState(() => settings.morning_brief && briefSeenOn(userId) !== today);
+  const [briefOpen, setBriefOpen] = React.useState(false);
+  const [briefDismissed, setBriefDismissed] = React.useState(false);
+  const brief = useDailyBrief(today, autoBrief || briefOpen);
+  const briefStatus = brief.data?.status;
+  const showAuto = autoBrief && !briefDismissed && (briefStatus === "ok" || briefStatus === "care");
+  React.useEffect(() => {
+    // 결과를 받았으면(보여줄 게 없어도) 오늘은 다시 자동으로 띄우지 않는다
+    if (autoBrief && briefStatus) markBriefSeen(userId, today);
+  }, [autoBrief, briefStatus, userId, today]);
+  const closeBrief = React.useCallback(() => {
+    setBriefOpen(false);
+    setBriefDismissed(true);
+  }, []);
 
   const dateKey = today;
 
@@ -142,17 +176,26 @@ export function WriteScreen({
   const composerDisabled = phase !== "idle";
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)_320px]">
-      {/* 왼쪽: 최근 기록 (데스크톱) */}
-      <div className="order-3 lg:order-1">{recent}</div>
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <DailyBriefDialog open={briefOpen || showAuto} onClose={closeBrief} today={today} query={brief} />
 
-      {/* 가운데: 입력 */}
-      <section className="order-1 min-w-0 lg:order-2">
+      {/* 왼쪽: 입력 */}
+      <section className="min-w-0">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-caption font-medium text-accent">
-              {formatDateKo(dateKey, "yyyy년 M월 d일 EEEE")}
-            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <p className="text-caption font-medium text-accent">
+                {formatDateKo(dateKey, "yyyy년 M월 d일 EEEE")}
+              </p>
+              <button
+                type="button"
+                onClick={() => setBriefOpen(true)}
+                className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-0.5 text-micro font-semibold text-muted transition-colors hover:bg-surface-3 hover:text-foreground"
+              >
+                <Sunrise className="size-3.5" />
+                어제의 나
+              </button>
+            </div>
             <h1 className="mt-0.5 text-title font-semibold tracking-tight sm:text-display">
               오늘은 어떤 하루였나요
             </h1>
@@ -225,7 +268,7 @@ export function WriteScreen({
       </section>
 
       {/* 오른쪽: AI 응답 + 태그 확인 + 지속 활동 */}
-      <aside className="order-2 space-y-6 lg:order-3">
+      <aside className="space-y-6">
         <div className="hidden space-y-6 lg:block">
           <AfterSave saved={saved} phase={phase} onConfirm={confirmTags} onSkip={skipTags} />
         </div>
