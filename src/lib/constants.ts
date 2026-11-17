@@ -56,18 +56,9 @@ export const TAG_KIND_LABEL: Record<TagKind, string> = {
   self_view_negative: "부정적 자기 평가",
 };
 
+/** entries.ai_mode 컬럼 값. 새 기록은 항상 comfort(공감), 나머지는 예전 기록에만 남아 있다 */
 export const AI_MODES = ["comfort", "organize", "analyze", "coach"] as const;
 export type AiMode = (typeof AI_MODES)[number];
-export const AI_MODE_META: Record<
-  AiMode,
-  { label: string; description: string }
-> = {
-  comfort: { label: "위로", description: "분석을 미루고 들어주기" },
-  organize: { label: "정리", description: "쓴 내용을 짧게 요약" },
-  analyze: { label: "분석", description: "패턴을 짚어주기" },
-  coach: { label: "코칭", description: "작은 실험 하나 제안" },
-};
-
 export const PERIODS = [
   { key: "7d", label: "최근 7일", days: 7 },
   { key: "30d", label: "최근 30일", days: 30 },
@@ -102,12 +93,11 @@ export const CRISIS_RESOURCES = [
 ] as const;
 
 export type UserSettings = {
-  /** 위로 모드 직설 정도 1(부드럽게) ~ 3(직설적으로) */
+  /** 저장 직후 AI 공감 말투 1(부드럽게) ~ 3(솔직하게) */
   comfort_directness: 1 | 2 | 3;
   /** 분석 모드 냉정함 1(따뜻하게) ~ 3(냉정하게) */
   analysis_coldness: 1 | 2 | 3;
   default_mode: "free" | "dialogue";
-  default_ai_mode: AiMode;
   display_name: string | null;
   /** 하루 첫 방문 때 "어제의 나" 브리핑을 자동으로 띄울지 */
   morning_brief: boolean;
@@ -117,7 +107,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
   comfort_directness: 2,
   analysis_coldness: 2,
   default_mode: "free",
-  default_ai_mode: "comfort",
   display_name: null,
   morning_brief: true,
 };

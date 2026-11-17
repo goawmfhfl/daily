@@ -10,7 +10,6 @@ import {
   EMOTION_META,
   EVENT_TYPES,
   TAG_KIND_LABEL,
-  AI_MODE_META,
   type Emotion,
 } from "@/lib/constants";
 import { useDeleteEntry, useSaveTags, useUpdateEntry } from "@/lib/query/hooks";
@@ -128,9 +127,6 @@ export function EntryEditor({ entry }: { entry: EntryWithTags }) {
           <CardBody className="space-y-2">
             <div className="flex items-center gap-2">
               <Badge tone="accent">AI</Badge>
-              {entry.ai_mode && (
-                <span className="text-micro text-muted">{AI_MODE_META[entry.ai_mode].label} 모드</span>
-              )}
             </div>
             <p className="text-body leading-relaxed">{entry.ai_reply}</p>
           </CardBody>

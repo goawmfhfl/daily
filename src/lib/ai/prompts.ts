@@ -1,10 +1,4 @@
-import {
-  AI_MODE_META,
-  EMOTIONS,
-  EVENT_TYPES,
-  type AiMode,
-  type UserSettings,
-} from "@/lib/constants";
+import { EMOTIONS, EVENT_TYPES, type UserSettings } from "@/lib/constants";
 
 /**
  * 프롬프트는 "고정 부분 → 가변 부분" 순서로 구성합니다.
@@ -21,11 +15,11 @@ export const SAFETY_RULES = `
 - 자해·극단적 선택을 암시하는 표현이 있으면 risk=true 로 표시한다.
 `.trim();
 
-function comfortTone(level: UserSettings["comfort_directness"]) {
+function empathyTone(level: UserSettings["comfort_directness"]) {
   return {
-    1: "아주 부드럽고 조심스럽게. 판단하지 말고 먼저 받아준다.",
-    2: "따뜻하되 솔직하게. 공감 후 짧게 사실을 짚어도 된다.",
-    3: "직설적으로. 돌려 말하지 말고 핵심을 바로 말하되 존중은 유지한다.",
+    1: "아주 부드럽고 조심스럽게. 판단하지 말고 그대로 받아준다.",
+    2: "따뜻하고 담백하게.",
+    3: "꾸밈없이 짧고 솔직하게. 과장된 위로는 하지 않되 존중은 유지한다.",
   }[level];
 }
 
@@ -37,21 +31,7 @@ function analysisTone(level: UserSettings["analysis_coldness"]) {
   }[level];
 }
 
-export function modeInstruction(mode: AiMode, settings: UserSettings) {
-  const base = `현재 모드: ${AI_MODE_META[mode].label} (${AI_MODE_META[mode].description}).`;
-  switch (mode) {
-    case "comfort":
-      return `${base} 말투: ${comfortTone(settings.comfort_directness)} 분석은 하지 않는다. 공감 한두 문장과 질문 하나만.`;
-    case "organize":
-      return `${base} 쓴 내용을 2~3문장으로 정리해 돌려준다. 해석은 최소화한다.`;
-    case "analyze":
-      return `${base} 말투: ${analysisTone(settings.analysis_coldness)} 이 기록 안에서 보이는 패턴 하나만 짚고 질문 하나.`;
-    case "coach":
-      return `${base} 기록에서 출발한 아주 작은 실험(오늘·내일 할 수 있는 것) 하나를 제안한다. 명령조가 아니라 제안조.`;
-  }
-}
-
-export function taggingSystemPrompt(settings: UserSettings, mode: AiMode) {
+export function taggingSystemPrompt(settings: UserSettings) {
   return `
 당신은 개인 기록 앱 "Daily"의 기록 보조자입니다. 사용자가 방금 쓴 기록 한 건을 받아 두 가지를 합니다.
 1) 태그 제안: 아래 체계로만 값을 고릅니다.
@@ -63,8 +43,10 @@ export function taggingSystemPrompt(settings: UserSettings, mode: AiMode) {
    - stress_level: 스트레스 정도 1~5
    - self_view_positive / self_view_negative: 사용자가 자기 자신을 평가한 문장을 원문 그대로 인용 (각 0~3개). 없으면 빈 배열.
    - risk: 자해·극단적 선택 암시가 있으면 true
-2) reply: 저장 직후 돌려줄 짧은 응답. 한국어, 존댓말, 최대 3문장. 긴 분석 금지.
-   ${modeInstruction(mode, settings)}
+2) reply: 저장 직후 돌려줄 짧은 공감. 한국어, 존댓말, 1~2문장.
+   - 사용자가 쓴 마음을 알아주고 받아주기만 한다. 말투: ${empathyTone(settings.comfort_directness)}
+   - 질문하지 않는다. 물음표로 끝나는 문장을 쓰지 않는다.
+   - 분석·요약·조언·해결책·할 일 제안을 하지 않는다.
 
 ${SAFETY_RULES}
 `.trim();

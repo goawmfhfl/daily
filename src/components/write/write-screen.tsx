@@ -3,18 +3,12 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { MessageCircle, PenLine, Sparkles, Sunrise } from "lucide-react";
-import {
-  AI_MODES,
-  AI_MODE_META,
-  type AiMode,
-  type UserSettings,
-} from "@/lib/constants";
+import type { UserSettings } from "@/lib/constants";
 import { formatDateKo } from "@/lib/utils";
 import { useCreateEntry, useDailyBrief, useSaveTags, type SaveEntryResponse } from "@/lib/query/hooks";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
-import { Chip } from "@/components/ui/chip";
 import { useToast } from "@/components/ui/toast";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -66,19 +60,14 @@ export function WriteScreen({
   // 이전에 쓰다 만 초안이 있으면 그대로 이어서 (다른 탭·새로고침 후에도)
   const [initial] = React.useState(() => loadDraft(userId));
   const [mode, setMode] = React.useState<"free" | "dialogue">(initial?.mode ?? settings.default_mode);
-  const [aiMode, setAiMode] = React.useState<AiMode>(
-    initial && (AI_MODES as readonly string[]).includes(initial.aiMode)
-      ? initial.aiMode
-      : settings.default_ai_mode,
-  );
   const [content, setContent] = React.useState(initial?.content ?? "");
   // 자유 메모·셀프 대화 모두 여기서 들고 있어 모드를 오가도 작성 중인 내용이 유지된다
   const [dialogue, setDialogue] = React.useState<DialogueDraft>(initial?.dialogue ?? EMPTY_DIALOGUE);
 
   // 입력할 때마다 이 브라우저에 보관 (내용이 비면 지운다)
   React.useEffect(() => {
-    saveDraft(userId, { mode, aiMode, content, dialogue });
-  }, [userId, mode, aiMode, content, dialogue]);
+    saveDraft(userId, { mode, content, dialogue });
+  }, [userId, mode, content, dialogue]);
   const [phase, setPhase] = React.useState<Phase>("idle");
   const [saved, setSaved] = React.useState<SaveResponse | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -111,7 +100,6 @@ export function WriteScreen({
         content: text,
         mode: entryMode,
         entry_date: dateKey,
-        ai_mode: aiMode,
       });
       if (res.crisis) {
         // 기록은 이미 저장됐으므로 초안을 지우고 안전 화면으로
@@ -227,9 +215,8 @@ export function WriteScreen({
                 className="min-h-[220px] rounded-none border-0 bg-transparent px-5 py-5 text-[1.0625rem] leading-[1.75] shadow-none focus:ring-0 sm:min-h-[280px]"
                 autoFocus
               />
-              <div className="flex flex-col gap-3 border-t border-border bg-surface-2/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <AiModeChips value={aiMode} onChange={setAiMode} disabled={composerDisabled} />
-                <div className="flex items-center justify-between gap-3 sm:justify-end">
+              <div className="flex justify-end border-t border-border bg-surface-2/50 px-4 py-3">
+                <div className="flex items-center gap-3">
                   <span className="text-micro text-subtle">
                     {content.length > 0 ? `${content.length}자 · ` : ""}⌘/Ctrl + Enter
                   </span>
@@ -247,8 +234,6 @@ export function WriteScreen({
             <DialogueComposer
               draft={dialogue}
               onDraftChange={setDialogue}
-              aiMode={aiMode}
-              onAiModeChange={setAiMode}
               saving={phase === "saving"}
               onSave={(text) => save(text, "dialogue")}
             />
@@ -274,33 +259,6 @@ export function WriteScreen({
         </div>
         <HabitChecklist dateKey={dateKey} />
       </aside>
-    </div>
-  );
-}
-
-function AiModeChips({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: AiMode;
-  onChange: (m: AiMode) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <Sparkles className="mr-0.5 size-3.5 text-subtle" />
-      {AI_MODES.map((m) => (
-        <Chip
-          key={m}
-          size="sm"
-          selected={value === m}
-          onClick={() => !disabled && onChange(m)}
-          title={AI_MODE_META[m].description}
-        >
-          {AI_MODE_META[m].label}
-        </Chip>
-      ))}
     </div>
   );
 }
@@ -339,9 +297,6 @@ function AfterSave({
         <CardBody className="space-y-2">
           <div className="flex items-center gap-2">
             <Badge tone="accent">AI</Badge>
-            <span className="text-micro text-muted">
-              {AI_MODE_META[saved.entry.ai_mode ?? "comfort"].label} 모드
-            </span>
           </div>
           <p className="text-body leading-relaxed">{saved.suggestion.reply}</p>
         </CardBody>

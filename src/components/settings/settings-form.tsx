@@ -1,11 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { AI_MODES, AI_MODE_META, type AiMode, type UserSettings } from "@/lib/constants";
+import type { UserSettings } from "@/lib/constants";
 import { useSaveSettings } from "@/lib/query/hooks";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
-import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 
@@ -37,24 +36,24 @@ export function SettingsForm({ initial }: { initial: UserSettings }) {
   return (
     <Card>
       <CardHeader
-        title="AI 말투와 모드"
-        description="위로 모드의 직설 정도와 분석 모드의 냉정함을 고릅니다"
+        title="AI 말투와 기록 방식"
+        description="저장 직후 공감 말투와 리포트 분석의 냉정함을 고릅니다"
         action={dirty ? <Button size="sm" onClick={save} loading={busy}>저장</Button> : undefined}
       />
       <CardBody className="space-y-6">
-        <Row label="위로 모드 — 얼마나 직설적으로" hint="부드럽게 ↔ 직설적으로">
+        <Row label="저장 직후 AI 공감 — 말투" hint="부드럽게 ↔ 솔직하게">
           <Segmented<`${Level}`>
             fullWidth
             value={`${s.comfort_directness}`}
             onChange={(v) => patch({ comfort_directness: Number(v) as Level })}
             options={[
               { value: "1", label: "부드럽게" },
-              { value: "2", label: "솔직하게" },
-              { value: "3", label: "직설적으로" },
+              { value: "2", label: "담백하게" },
+              { value: "3", label: "솔직하게" },
             ]}
           />
         </Row>
-        <Row label="분석 모드 — 얼마나 냉정하게" hint="따뜻하게 ↔ 냉정하게">
+        <Row label="리포트 분석 — 얼마나 냉정하게" hint="따뜻하게 ↔ 냉정하게">
           <Segmented<`${Level}`>
             fullWidth
             value={`${s.analysis_coldness}`}
@@ -85,15 +84,6 @@ export function SettingsForm({ initial }: { initial: UserSettings }) {
               { value: "off", label: "버튼으로만" },
             ]}
           />
-        </Row>
-        <Row label="저장 직후 AI 응답의 기본 모드">
-          <div className="flex flex-wrap gap-1.5">
-            {AI_MODES.map((m: AiMode) => (
-              <Chip key={m} selected={s.default_ai_mode === m} onClick={() => patch({ default_ai_mode: m })} title={AI_MODE_META[m].description}>
-                {AI_MODE_META[m].label}
-              </Chip>
-            ))}
-          </div>
         </Row>
       </CardBody>
     </Card>

@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { todayKey } from "@/lib/utils";
-import type { AiMode, PeriodKey, UserSettings } from "@/lib/constants";
+import type { PeriodKey, UserSettings } from "@/lib/constants";
 import type {
   EntryRow,
   EntryTagRow,
@@ -233,7 +233,6 @@ export function useCreateEntry() {
       content: string;
       mode: "free" | "dialogue";
       entry_date: string;
-      ai_mode: AiMode;
     }) => api<SaveEntryResponse>("/api/entries", { method: "POST", body }),
     onSuccess: (res) => upsertEntry(qc, res.entry),
   });

@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CornerDownLeft, RotateCcw, Sparkles, X } from "lucide-react";
-import { AI_MODES, AI_MODE_META, type AiMode } from "@/lib/constants";
+import { CornerDownLeft, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
@@ -58,15 +57,11 @@ function loadNames(): Record<Speaker, string> {
 export function DialogueComposer({
   draft,
   onDraftChange,
-  aiMode,
-  onAiModeChange,
   saving,
   onSave,
 }: {
   draft: DialogueDraft;
   onDraftChange: React.Dispatch<React.SetStateAction<DialogueDraft>>;
-  aiMode: AiMode;
-  onAiModeChange: (m: AiMode) => void;
   saving: boolean;
   /** 저장에 성공하면 true */
   onSave: (content: string) => Promise<boolean>;
@@ -249,16 +244,8 @@ export function DialogueComposer({
           </div>
         ))}
 
-        <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Sparkles className="mr-0.5 size-3.5 text-subtle" />
-            {AI_MODES.map((m) => (
-              <Chip key={m} size="sm" selected={aiMode === m} onClick={() => onAiModeChange(m)} title={AI_MODE_META[m].description}>
-                {AI_MODE_META[m].label}
-              </Chip>
-            ))}
-          </div>
-          <div className="flex items-center justify-between gap-2 sm:justify-end">
+        <div className="flex justify-end pt-1">
+          <div className="flex items-center gap-2">
             <span className="whitespace-nowrap text-micro text-subtle" title="⌘/Ctrl + Enter 로 바로 저장">{lines.length}마디</span>
             <Button variant="ghost" size="sm" onClick={reset} disabled={saving || !hasContent}>
               <RotateCcw className="size-3.5" /> 다시

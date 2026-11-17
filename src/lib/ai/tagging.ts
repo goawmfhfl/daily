@@ -1,7 +1,7 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import { openai, MODELS } from "@/lib/openai";
 import { clamp } from "@/lib/utils";
-import type { AiMode, UserSettings } from "@/lib/constants";
+import type { UserSettings } from "@/lib/constants";
 import type { TagSuggestion } from "@/lib/types";
 import { TagSuggestionSchema } from "./schemas";
 import { taggingSystemPrompt } from "./prompts";
@@ -17,7 +17,6 @@ export async function suggestTagsAndReply(input: {
   content: string;
   entryDate: string;
   mode: "free" | "dialogue";
-  aiMode: AiMode;
   settings: UserSettings;
   habitNames: string[];
 }): Promise<TagSuggestion> {
@@ -26,7 +25,7 @@ export async function suggestTagsAndReply(input: {
     model,
     ...reasoningFor(model, "minimal"),
     input: [
-      { role: "system", content: taggingSystemPrompt(input.settings, input.aiMode) },
+      { role: "system", content: taggingSystemPrompt(input.settings) },
       {
         role: "user",
         content: [

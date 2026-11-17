@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { handler, requireUser, json, fail } from "@/lib/api-server";
 import { detectCrisis } from "@/lib/crisis";
-import { AI_MODES } from "@/lib/constants";
 import { getSettings, fetchHabits, fetchEntries, fetchEntry } from "@/lib/data";
 import { suggestTagsAndReply } from "@/lib/ai/tagging";
 import { embed, hasOpenAI } from "@/lib/openai";
@@ -11,7 +10,6 @@ const Body = z.object({
   content: z.string().trim().min(1).max(20000),
   mode: z.enum(["free", "dialogue"]),
   entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  ai_mode: z.enum(AI_MODES).optional(),
 });
 
 /** 클라이언트 캐시가 한 번 받아 모든 화면에서 나눠 쓰는 전체 기록 목록 */
@@ -36,7 +34,6 @@ export const POST = handler(async (req) => {
   const body = parsed.data;
 
   const settings = await getSettings(supabase, user.id);
-  const aiMode = body.ai_mode ?? settings.default_ai_mode;
   const ruleCrisis = detectCrisis(body.content);
 
   const { data: entry, error } = await supabase
@@ -46,7 +43,8 @@ export const POST = handler(async (req) => {
       content: body.content,
       mode: body.mode,
       entry_date: body.entry_date,
-      ai_mode: aiMode,
+      // AI 응답은 이제 공감 한 가지뿐 (예전 모드 값은 기존 기록에만 남아 있다)
+      ai_mode: "comfort",
       risk_flag: ruleCrisis,
     })
     .select("*")
@@ -67,7 +65,6 @@ export const POST = handler(async (req) => {
         content: body.content,
         entryDate: body.entry_date,
         mode: body.mode,
-        aiMode,
         settings,
         habitNames: habits.map((h) => h.name),
       });

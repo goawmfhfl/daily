@@ -1,4 +1,3 @@
-import type { AiMode } from "@/lib/constants";
 import type { DialogueDraft } from "@/components/write/dialogue-composer";
 
 /**
@@ -10,7 +9,6 @@ import type { DialogueDraft } from "@/components/write/dialogue-composer";
  */
 export interface WriteDraft {
   mode: "free" | "dialogue";
-  aiMode: AiMode;
   content: string;
   dialogue: DialogueDraft;
 }
@@ -37,12 +35,11 @@ export function loadDraft(userId: string): WriteDraft | null {
       !d.dialogue ||
       !Array.isArray(d.dialogue.lines) ||
       typeof d.dialogue.drafts?.a !== "string" ||
-      typeof d.dialogue.drafts?.b !== "string" ||
-      typeof d.aiMode !== "string"
+      typeof d.dialogue.drafts?.b !== "string"
     ) {
       return null;
     }
-    return d as WriteDraft;
+    return { mode: d.mode, content: d.content, dialogue: d.dialogue as WriteDraft["dialogue"] };
   } catch {
     return null;
   }
