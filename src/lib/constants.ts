@@ -124,3 +124,13 @@ export const ZH_LEVEL_META: Record<ZhLevel, { label: string; description: string
 
 /** 한 번에 번역할 수 있는 한국어 최대 길이 */
 export const ZH_MAX_INPUT = 500;
+
+export const ZH_VOCAB_KINDS = ["word", "idiom", "sentence"] as const;
+export type ZhVocabKind = (typeof ZH_VOCAB_KINDS)[number];
+export const ZH_VOCAB_KIND_LABEL: Record<ZhVocabKind, string> = {
+  word: "단어",
+  idiom: "숙어",
+  sentence: "문장",
+};
+/** 단어장에 직접 입력할 수 있는 최대 길이 */
+export const ZH_VOCAB_MAX_INPUT = 120;

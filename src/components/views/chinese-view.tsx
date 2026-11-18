@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Languages, Search, Sparkles } from "lucide-react";
+import { BookOpen, Languages, Search, Sparkles } from "lucide-react";
 import { ZH_LEVELS, ZH_LEVEL_META, ZH_MAX_INPUT, type ZhLevel } from "@/lib/constants";
-import { useMe, useTranslateZh, useZhPhrases } from "@/lib/query/hooks";
+import { useMe, useTranslateZh, useZhPhrases, useZhVocab } from "@/lib/query/hooks";
 import { PageHeader, SectionTitle } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageSkeleton, QueryError } from "@/components/ui/query-state";
 import { useToast } from "@/components/ui/toast";
 import { PhraseCard } from "@/components/chinese/phrase-card";
-import type { ZhPhraseWithTranslations } from "@/lib/types";
+import { VocabPanel } from "@/components/chinese/vocab-panel";
+import type { ZhPhraseWithTranslations, ZhVocabRow } from "@/lib/types";
 
 const LEVEL_KEY = "daily:zh-level";
 const PINYIN_KEY = "daily:zh-pinyin";
+const TAB_KEY = "daily:zh-tab";
+const TABS = ["translate", "vocab"] as const;
+type Tab = (typeof TABS)[number];
 
 /** 기기별 편의 설정: 마지막 난이도, 병음 보기 */
 function readLocal<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {
@@ -36,42 +40,119 @@ function writeLocal(key: string, value: string) {
 
 export function ChineseView() {
   const phrases = useZhPhrases();
-  if (phrases.isError) return <QueryError error={phrases.error} onRetry={() => void phrases.refetch()} />;
-  if (!phrases.data) return <PageSkeleton />;
-  return <Chinese phrases={phrases.data} />;
+  const vocab = useZhVocab();
+  const failed = [phrases, vocab].find((q) => q.isError);
+  if (failed) {
+    return (
+      <QueryError
+        error={failed.error}
+        onRetry={() => {
+          void phrases.refetch();
+          void vocab.refetch();
+        }}
+      />
+    );
+  }
+  if (!phrases.data || !vocab.data) return <PageSkeleton />;
+  return <Chinese phrases={phrases.data} vocab={vocab.data} />;
 }
 
-function Chinese({ phrases }: { phrases: ZhPhraseWithTranslations[] }) {
-  const toast = useToast();
+function Chinese({ phrases, vocab }: { phrases: ZhPhraseWithTranslations[]; vocab: ZhVocabRow[] }) {
   const me = useMe();
-  const translate = useTranslateZh();
-
-  const [level, setLevel] = React.useState<ZhLevel>("conversation");
+  const [tab, setTab] = React.useState<Tab>("translate");
   const [showPinyin, setShowPinyin] = React.useState(true);
-  const [text, setText] = React.useState("");
-  const [lastId, setLastId] = React.useState<string | null>(null);
-  const [q, setQ] = React.useState("");
-  const [onlyFav, setOnlyFav] = React.useState(false);
 
   // 저장된 기기 설정은 화면이 뜬 뒤 읽는다 (정적 HTML 과 어긋나지 않게)
   React.useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLevel(readLocal(LEVEL_KEY, "conversation", ZH_LEVELS));
+    setTab(readLocal(TAB_KEY, "translate", TABS));
     setShowPinyin(readLocal(PINYIN_KEY, "on", ["on", "off"] as const) === "on");
   }, []);
 
   const aiAvailable = me.data?.aiAvailable ?? true;
-  const trimmed = text.trim();
 
-  function changeLevel(l: ZhLevel) {
-    setLevel(l);
-    writeLocal(LEVEL_KEY, l);
+  function changeTab(t: Tab) {
+    setTab(t);
+    writeLocal(TAB_KEY, t);
   }
   function togglePinyin() {
     setShowPinyin((v) => {
       writeLocal(PINYIN_KEY, v ? "off" : "on");
       return !v;
     });
+  }
+
+  const pinyinToggle = (
+    <Chip size="sm" selected={showPinyin} onClick={togglePinyin}>
+      병음 보기
+    </Chip>
+  );
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-8">
+      <PageHeader
+        title="중국어"
+        description={
+          tab === "translate"
+            ? "한국어로 쓰면 원하는 난이도의 중국어로 바꿔 줍니다. 번역한 문장은 아래에 쌓입니다."
+            : "외우고 싶은 단어·숙어·문장을 모아 둡니다. 뜻과 해석, 예문은 AI가 만들어 줍니다."
+        }
+        action={
+          <Segmented<Tab>
+            value={tab}
+            onChange={changeTab}
+            options={[
+              { value: "translate", label: "번역", icon: <Languages className="size-4" /> },
+              { value: "vocab", label: `단어장 ${vocab.length}`, icon: <BookOpen className="size-4" /> },
+            ]}
+          />
+        }
+      />
+
+      {tab === "translate" ? (
+        <TranslatePanel
+          phrases={phrases}
+          showPinyin={showPinyin}
+          pinyinToggle={pinyinToggle}
+          aiAvailable={aiAvailable}
+        />
+      ) : (
+        <VocabPanel items={vocab} showPinyin={showPinyin} pinyinToggle={pinyinToggle} aiAvailable={aiAvailable} />
+      )}
+    </div>
+  );
+}
+
+function TranslatePanel({
+  phrases,
+  showPinyin,
+  pinyinToggle,
+  aiAvailable,
+}: {
+  phrases: ZhPhraseWithTranslations[];
+  showPinyin: boolean;
+  pinyinToggle: React.ReactNode;
+  aiAvailable: boolean;
+}) {
+  const toast = useToast();
+  const translate = useTranslateZh();
+
+  const [level, setLevel] = React.useState<ZhLevel>("conversation");
+  const [text, setText] = React.useState("");
+  const [lastId, setLastId] = React.useState<string | null>(null);
+  const [q, setQ] = React.useState("");
+  const [onlyFav, setOnlyFav] = React.useState(false);
+
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLevel(readLocal(LEVEL_KEY, "conversation", ZH_LEVELS));
+  }, []);
+
+  const trimmed = text.trim();
+
+  function changeLevel(l: ZhLevel) {
+    setLevel(l);
+    writeLocal(LEVEL_KEY, l);
   }
 
   function submit() {
@@ -105,12 +186,7 @@ function Chinese({ phrases }: { phrases: ZhPhraseWithTranslations[] }) {
   }, [phrases, q, onlyFav]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <PageHeader
-        title="중국어"
-        description="한국어로 쓰면 원하는 난이도의 중국어로 바꿔 줍니다. 번역한 문장은 아래에 쌓입니다."
-      />
-
+    <div className="space-y-8">
       <Card className="overflow-hidden">
         <CardBody className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -153,13 +229,7 @@ function Chinese({ phrases }: { phrases: ZhPhraseWithTranslations[] }) {
       </Card>
 
       <section className="space-y-3">
-        <SectionTitle
-          action={
-            <Chip size="sm" selected={showPinyin} onClick={togglePinyin}>
-              병음 보기
-            </Chip>
-          }
-        >
+        <SectionTitle action={pinyinToggle}>
           {`쌓인 문장 ${phrases.length}`}
         </SectionTitle>
 

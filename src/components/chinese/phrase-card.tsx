@@ -1,11 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { Copy, Plus, RotateCw, Star, Trash2 } from "lucide-react";
+import { Bookmark, BookmarkCheck, Copy, Plus, RotateCw, Star, Trash2 } from "lucide-react";
 import { ZH_LEVELS, ZH_LEVEL_META, type ZhLevel } from "@/lib/constants";
 import type { ZhPhraseWithTranslations } from "@/lib/types";
 import { cn, relativeDayLabel, todayKey } from "@/lib/utils";
-import { useAddZhLevel, useDeleteZhPhrase, useToggleZhFavorite } from "@/lib/query/hooks";
+import {
+  useAddZhLevel,
+  useDeleteZhPhrase,
+  useDeleteZhVocab,
+  useSaveZhSentence,
+  useToggleZhFavorite,
+  useZhVocab,
+} from "@/lib/query/hooks";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
@@ -28,6 +35,9 @@ export function PhraseCard({
   const addLevel = useAddZhLevel();
   const toggleFav = useToggleZhFavorite();
   const del = useDeleteZhPhrase();
+  const vocab = useZhVocab();
+  const saveSentence = useSaveZhSentence();
+  const unsaveSentence = useDeleteZhVocab();
 
   const byLevel = React.useMemo(
     () => new Map(phrase.zh_translations.map((t) => [t.level, t])),
@@ -39,6 +49,27 @@ export function PhraseCard({
   const [confirm, setConfirm] = React.useState(false);
 
   const current = byLevel.get(level);
+  // 지금 보이는 난이도의 문장이 단어장에 있는지
+  const savedItem = current
+    ? vocab.data?.find(
+        (v) => v.kind === "sentence" && (v.source_translation_id === current.id || v.hanzi === current.hanzi),
+      )
+    : undefined;
+
+  function toggleSentence() {
+    if (!current) return;
+    if (savedItem) {
+      unsaveSentence.mutate(savedItem.id, {
+        onSuccess: () => toast.push({ tone: "info", title: "단어장에서 뺐습니다" }),
+        onError: (e) => toast.push({ tone: "error", title: "실패", description: e.message }),
+      });
+    } else {
+      saveSentence.mutate(current.id, {
+        onSuccess: () => toast.push({ tone: "success", title: "문장을 단어장에 저장했습니다" }),
+        onError: (e) => toast.push({ tone: "error", title: "저장하지 못했습니다", description: e.message }),
+      });
+    }
+  }
 
   function translate(l: ZhLevel) {
     setLevel(l);
@@ -130,7 +161,7 @@ export function PhraseCard({
           </div>
         ) : current ? (
           <>
-            <ZhSentence key={current.id} segments={current.segments} showPinyin={showPinyin} />
+            <ZhSentence key={current.id} segments={current.segments} showPinyin={showPinyin} context={current.hanzi} />
             {current.note && (
               <p className="mt-4 border-l-2 border-accent/50 pl-3 text-caption leading-relaxed text-muted">
                 {current.note}
@@ -142,7 +173,19 @@ export function PhraseCard({
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-1 border-t border-border bg-surface-2/40 px-3 py-1.5">
+      <div className="flex flex-wrap items-center justify-end gap-1 border-t border-border bg-surface-2/40 px-3 py-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggleSentence}
+          disabled={!current || !!pending}
+          loading={saveSentence.isPending || unsaveSentence.isPending}
+          aria-pressed={!!savedItem}
+          className={cn("mr-auto", savedItem && "text-accent hover:text-accent")}
+        >
+          {savedItem ? <BookmarkCheck className="size-3.5" /> : <Bookmark className="size-3.5" />}
+          {savedItem ? "단어장에 저장됨" : "문장 저장"}
+        </Button>
         <Button variant="ghost" size="sm" onClick={copy} disabled={!current}>
           <Copy className="size-3.5" /> 복사
         </Button>

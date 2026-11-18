@@ -1,9 +1,9 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import { pinyin as toPinyin } from "pinyin-pro";
 import { openai, MODELS } from "@/lib/openai";
 import { ZH_LEVEL_META, type ZhLevel } from "@/lib/constants";
 import type { ZhSegment } from "@/lib/types";
+import { joinSegmentsPinyin, verifySegments } from "./zh-pinyin";
 
 /* 스키마·프롬프트는 이 기능 안에서만 쓰므로 함께 둔다 (Structured Outputs strict) */
 
@@ -51,47 +51,6 @@ ${LEVEL_RULES[level]}
 `.trim();
 }
 
-/** 성조 기호를 떼어 소리만 비교 (lǜ → lu) */
-function toneless(s: string) {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
-
-const isHan = (ch: string) => /\p{Script=Han}/u.test(ch);
-
-/**
- * AI 병음을 글자별로 검증한다.
- * - 성조를 뗀 소리가 그 글자의 실제 읽기 후보 중 하나면 AI 값을 쓴다 (一·不 성조 변화, 경성 표기를 살리기 위해)
- * - 아니면(없는 읽기, 음절 수 불일치) 문장 문맥으로 계산한 pinyin-pro 값으로 바꾼다
- */
-function verifySegments(hanzi: string, raw: { hanzi: string; pinyin: string; ko: string }[]): ZhSegment[] {
-  const chars = [...hanzi];
-  const libPinyin = toPinyin(hanzi, { type: "array" });
-
-  const joined = raw.map((s) => s.hanzi).join("");
-  // AI 분절이 원문과 다르면 분절은 버리고 글자 단위로
-  const segs = joined === hanzi ? raw : chars.map((c) => ({ hanzi: c, pinyin: "", ko: "" }));
-
-  let offset = 0;
-  return segs.map((seg) => {
-    const segChars = [...seg.hanzi];
-    const aiSyllables = seg.pinyin.trim().split(/\s+/).filter(Boolean);
-    const sameCount = aiSyllables.length === segChars.length;
-
-    const syllables = segChars.map((ch, i) => {
-      const lib = libPinyin[offset + i] ?? ch;
-      if (!isHan(ch)) return ch;
-      const ai = sameCount ? aiSyllables[i] : undefined;
-      if (!ai) return lib;
-      const candidates = toPinyin(ch, { multiple: true, type: "array" }).map(toneless);
-      // 儿化(r)는 儿 의 읽기로 인정
-      const ok = candidates.includes(toneless(ai)) || (ch === "儿" && toneless(ai) === "r");
-      return ok ? ai : lib;
-    });
-    offset += segChars.length;
-    return { hanzi: seg.hanzi, pinyin: syllables.join(" "), ko: seg.ko.trim() };
-  });
-}
-
 export async function translateToChinese(
   sourceKo: string,
   level: ZhLevel,
@@ -114,12 +73,7 @@ export async function translateToChinese(
 
   const hanzi = out.hanzi.trim();
   const segments = verifySegments(hanzi, out.segments);
-  // 문장 전체 병음: 문장부호 앞 공백은 붙인다
-  const pinyin = segments
-    .map((s) => s.pinyin)
-    .join(" ")
-    .replace(/\s+([，。？！、；：,.?!;:”’）)…])/g, "$1")
-    .replace(/([“‘（(])\s+/g, "$1");
+  const pinyin = joinSegmentsPinyin(segments);
 
   return { hanzi, pinyin, segments, note: out.note.trim(), model };
 }

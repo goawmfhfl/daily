@@ -22,6 +22,7 @@ import type {
   BriefResponse,
   ZhPhraseWithTranslations,
   ZhTranslationRow,
+  ZhVocabRow,
 } from "@/lib/types";
 import type { ZhLevel } from "@/lib/constants";
 import type { ConfirmedTag } from "@/components/write/tag-confirm";
@@ -190,6 +191,7 @@ export function prefetchRoute(qc: QueryClient, href: string) {
       break;
     case "/chinese":
       p(qk.chinese, () => api<{ phrases: ZhPhraseWithTranslations[] }>("/api/chinese").then((r) => r.phrases));
+      p(qk.zhVocab, () => api<{ items: ZhVocabRow[] }>("/api/zh-vocab").then((r) => r.items));
       p(qk.me, fetchers.me);
       break;
     case "/settings":
@@ -489,5 +491,54 @@ export function useDeleteZhPhrase() {
     mutationFn: (id: string) => api(`/api/chinese/${id}`, { method: "DELETE" }),
     onSuccess: (_r, id) =>
       qc.setQueryData<ZhPhraseWithTranslations[]>(qk.chinese, (list) => list?.filter((p) => p.id !== id)),
+  });
+}
+
+/* ───────────────────────── 중국어 단어장 ───────────────────────── */
+
+export function useZhVocab() {
+  return useQuery({
+    queryKey: qk.zhVocab,
+    queryFn: () => api<{ items: ZhVocabRow[] }>("/api/zh-vocab").then((r) => r.items),
+  });
+}
+
+function prependVocab(qc: QueryClient, item: ZhVocabRow) {
+  qc.setQueryData<ZhVocabRow[]>(qk.zhVocab, (list) =>
+    list ? [item, ...list.filter((v) => v.id !== item.id)] : [item],
+  );
+}
+
+/** 단어·숙어·문장 입력 → AI 카드 생성 후 저장. 이미 있으면 duplicate */
+export function useAddZhVocab() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { text: string; context?: string | null }) =>
+      api<{ item: ZhVocabRow; duplicate: boolean }>("/api/zh-vocab", { method: "POST", body }),
+    onSuccess: (res) => {
+      if (!res.duplicate) prependVocab(qc, res.item);
+    },
+  });
+}
+
+/** 번역 카드의 문장을 단어장에 저장 */
+export function useSaveZhSentence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (translationId: string) =>
+      api<{ item: ZhVocabRow }>("/api/zh-vocab/sentence", {
+        method: "POST",
+        body: { translation_id: translationId },
+      }).then((r) => r.item),
+    onSuccess: (item) => prependVocab(qc, item),
+  });
+}
+
+export function useDeleteZhVocab() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/api/zh-vocab/${id}`, { method: "DELETE" }),
+    onSuccess: (_r, id) =>
+      qc.setQueryData<ZhVocabRow[]>(qk.zhVocab, (list) => list?.filter((v) => v.id !== id)),
   });
 }

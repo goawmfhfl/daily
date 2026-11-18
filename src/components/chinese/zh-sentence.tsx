@@ -1,22 +1,29 @@
 "use client";
 
 import * as React from "react";
+import { BookmarkCheck, BookmarkPlus } from "lucide-react";
 import type { ZhSegment } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useAddZhVocab, useZhVocab } from "@/lib/query/hooks";
+import { Spinner } from "@/components/ui/spinner";
+import { useToast } from "@/components/ui/toast";
 
 const isPunct = (s: string) => !/\p{Script=Han}/u.test(s) && !/[A-Za-z0-9]/.test(s);
 
 /**
  * 한자를 크게, 단어마다 바로 아래에 병음을 작게 붙인다 (ruby, 아래쪽 정렬).
- * 단어를 누르면 그 단어의 뜻이 아래에 보인다.
+ * 단어를 누르면 그 단어의 뜻이 아래에 보이고, 단어장에 바로 넣을 수 있다.
  */
 export function ZhSentence({
   segments,
   showPinyin,
+  context,
   className,
 }: {
   segments: ZhSegment[];
   showPinyin: boolean;
+  /** 단어장에 넣을 때 뜻을 문맥에 맞추기 위한 문장 전체 */
+  context?: string;
   className?: string;
 }) {
   const [picked, setPicked] = React.useState<number | null>(null);
@@ -63,13 +70,57 @@ export function ZhSentence({
           );
         })}
       </p>
-      {word && (
-        <p className="mt-3 flex flex-wrap items-baseline gap-x-2 rounded-md bg-surface-2 px-3 py-2 text-caption animate-fade-in">
-          <span lang="zh-CN" className="text-body font-semibold">{word.hanzi}</span>
-          <span className="text-muted">{word.pinyin}</span>
-          {word.ko && <span className="text-foreground/85">· {word.ko}</span>}
-        </p>
-      )}
+      {word && <WordDetail key={word.hanzi} word={word} context={context} />}
+    </div>
+  );
+}
+
+function WordDetail({ word, context }: { word: ZhSegment; context?: string }) {
+  const toast = useToast();
+  const vocab = useZhVocab();
+  const add = useAddZhVocab();
+  const saved = vocab.data?.some((v) => v.kind !== "sentence" && v.hanzi === word.hanzi);
+
+  function save() {
+    add.mutate(
+      { text: word.hanzi, context: context ?? null },
+      {
+        onSuccess: (res) =>
+          toast.push({
+            tone: res.duplicate ? "info" : "success",
+            title: res.duplicate ? "이미 단어장에 있는 단어예요" : "단어장에 추가했습니다",
+            description: res.duplicate ? undefined : `${res.item.hanzi} · ${res.item.meaning.split("\n")[0]}`,
+          }),
+        onError: (e) => toast.push({ tone: "error", title: "단어장에 넣지 못했습니다", description: e.message }),
+      },
+    );
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-surface-2 px-3 py-2 text-caption animate-fade-in">
+      <span lang="zh-CN" className="text-body font-semibold">{word.hanzi}</span>
+      <span className="text-muted">{word.pinyin}</span>
+      {word.ko && <span className="text-foreground/85">· {word.ko}</span>}
+      <button
+        type="button"
+        onClick={save}
+        disabled={saved || add.isPending}
+        className={cn(
+          "ml-auto inline-flex h-7 items-center gap-1 rounded-full px-2.5 font-medium transition-colors",
+          saved
+            ? "text-accent"
+            : "bg-surface text-foreground shadow-sm hover:bg-surface-3 disabled:opacity-70",
+        )}
+      >
+        {add.isPending ? (
+          <Spinner className="size-3.5" />
+        ) : saved ? (
+          <BookmarkCheck className="size-3.5" />
+        ) : (
+          <BookmarkPlus className="size-3.5" />
+        )}
+        {saved ? "단어장에 있음" : add.isPending ? "예문 만드는 중…" : "단어장에 추가"}
+      </button>
     </div>
   );
 }

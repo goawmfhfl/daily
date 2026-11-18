@@ -20,4 +20,6 @@ export const qk = {
   brief: (today: string) => ["brief", today] as const,
   /** 중국어 학습: 번역한 문장 전체(난이도별 번역 포함) */
   chinese: ["chinese"] as const,
+  /** 중국어 단어장 */
+  zhVocab: ["zh-vocab"] as const,
 };

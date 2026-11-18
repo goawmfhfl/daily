@@ -206,3 +206,26 @@ export interface ZhPhraseRow {
 export interface ZhPhraseWithTranslations extends ZhPhraseRow {
   zh_translations: ZhTranslationRow[];
 }
+
+export interface ZhExample {
+  hanzi: string;
+  pinyin: string;
+  ko: string;
+}
+
+export interface ZhVocabRow {
+  id: string;
+  user_id: string;
+  kind: import("./constants").ZhVocabKind;
+  input: string;
+  hanzi: string;
+  pinyin: string;
+  part_of_speech: string;
+  meaning: string;
+  explanation: string;
+  examples: ZhExample[];
+  segments: ZhSegment[];
+  source_translation_id: string | null;
+  model: string | null;
+  created_at: string;
+}
