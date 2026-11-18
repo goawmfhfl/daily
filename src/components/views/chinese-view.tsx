@@ -1,0 +1,210 @@
+"use client";
+
+import * as React from "react";
+import { Languages, Search, Sparkles } from "lucide-react";
+import { ZH_LEVELS, ZH_LEVEL_META, ZH_MAX_INPUT, type ZhLevel } from "@/lib/constants";
+import { useMe, useTranslateZh, useZhPhrases } from "@/lib/query/hooks";
+import { PageHeader, SectionTitle } from "@/components/ui/page-header";
+import { Card, CardBody } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input, Textarea } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
+import { Chip } from "@/components/ui/chip";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageSkeleton, QueryError } from "@/components/ui/query-state";
+import { useToast } from "@/components/ui/toast";
+import { PhraseCard } from "@/components/chinese/phrase-card";
+import type { ZhPhraseWithTranslations } from "@/lib/types";
+
+const LEVEL_KEY = "daily:zh-level";
+const PINYIN_KEY = "daily:zh-pinyin";
+
+/** 기기별 편의 설정: 마지막 난이도, 병음 보기 */
+function readLocal<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {
+  try {
+    const v = localStorage.getItem(key) as T | null;
+    return v && allowed.includes(v) ? v : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function writeLocal(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+export function ChineseView() {
+  const phrases = useZhPhrases();
+  if (phrases.isError) return <QueryError error={phrases.error} onRetry={() => void phrases.refetch()} />;
+  if (!phrases.data) return <PageSkeleton />;
+  return <Chinese phrases={phrases.data} />;
+}
+
+function Chinese({ phrases }: { phrases: ZhPhraseWithTranslations[] }) {
+  const toast = useToast();
+  const me = useMe();
+  const translate = useTranslateZh();
+
+  const [level, setLevel] = React.useState<ZhLevel>("conversation");
+  const [showPinyin, setShowPinyin] = React.useState(true);
+  const [text, setText] = React.useState("");
+  const [lastId, setLastId] = React.useState<string | null>(null);
+  const [q, setQ] = React.useState("");
+  const [onlyFav, setOnlyFav] = React.useState(false);
+
+  // 저장된 기기 설정은 화면이 뜬 뒤 읽는다 (정적 HTML 과 어긋나지 않게)
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLevel(readLocal(LEVEL_KEY, "conversation", ZH_LEVELS));
+    setShowPinyin(readLocal(PINYIN_KEY, "on", ["on", "off"] as const) === "on");
+  }, []);
+
+  const aiAvailable = me.data?.aiAvailable ?? true;
+  const trimmed = text.trim();
+
+  function changeLevel(l: ZhLevel) {
+    setLevel(l);
+    writeLocal(LEVEL_KEY, l);
+  }
+  function togglePinyin() {
+    setShowPinyin((v) => {
+      writeLocal(PINYIN_KEY, v ? "off" : "on");
+      return !v;
+    });
+  }
+
+  function submit() {
+    if (!trimmed || translate.isPending) return;
+    translate.mutate(
+      { source_ko: trimmed, level },
+      {
+        onSuccess: (p) => {
+          setText("");
+          setLastId(p.id);
+          setQ("");
+          setOnlyFav(false);
+        },
+        onError: (e) => toast.push({ tone: "error", title: "번역하지 못했습니다", description: e.message }),
+      },
+    );
+  }
+
+  const filtered = React.useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return phrases.filter((p) => {
+      if (onlyFav && !p.favorite) return false;
+      if (!needle) return true;
+      return (
+        p.source_ko.toLowerCase().includes(needle) ||
+        p.zh_translations.some(
+          (t) => t.hanzi.includes(needle) || t.pinyin.toLowerCase().includes(needle),
+        )
+      );
+    });
+  }, [phrases, q, onlyFav]);
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-8">
+      <PageHeader
+        title="중국어"
+        description="한국어로 쓰면 원하는 난이도의 중국어로 바꿔 줍니다. 번역한 문장은 아래에 쌓입니다."
+      />
+
+      <Card className="overflow-hidden">
+        <CardBody className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Segmented<ZhLevel>
+              value={level}
+              onChange={changeLevel}
+              options={ZH_LEVELS.map((l) => ({ value: l, label: ZH_LEVEL_META[l].label }))}
+            />
+            <p className="text-caption text-subtle">{ZH_LEVEL_META[level].description}</p>
+          </div>
+
+          <Textarea
+            autoResize
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            maxLength={ZH_MAX_INPUT}
+            disabled={translate.isPending}
+            placeholder="예: 오늘 회사에서 너무 바빠서 점심도 못 먹었어."
+            className="min-h-[96px] text-[1.0625rem]"
+          />
+
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-micro text-subtle">
+              {text.length > 0 ? `${text.length}/${ZH_MAX_INPUT}자 · ` : ""}⌘/Ctrl + Enter
+            </span>
+            <Button onClick={submit} disabled={!trimmed || !aiAvailable} loading={translate.isPending}>
+              <Sparkles className="size-4" /> 번역
+            </Button>
+          </div>
+          {!aiAvailable && (
+            <p className="text-caption text-warning">OPENAI_API_KEY 가 설정되지 않아 번역할 수 없습니다.</p>
+          )}
+        </CardBody>
+      </Card>
+
+      <section className="space-y-3">
+        <SectionTitle
+          action={
+            <Chip size="sm" selected={showPinyin} onClick={togglePinyin}>
+              병음 보기
+            </Chip>
+          }
+        >
+          {`쌓인 문장 ${phrases.length}`}
+        </SectionTitle>
+
+        {phrases.length > 0 && (
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-subtle" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="한국어, 한자, 병음으로 찾기"
+                className="pl-9"
+              />
+            </div>
+            <Chip selected={onlyFav} onClick={() => setOnlyFav((v) => !v)} className="h-10 px-3.5">
+              즐겨찾기
+            </Chip>
+          </div>
+        )}
+
+        {phrases.length === 0 ? (
+          <EmptyState
+            icon={<Languages className="size-5" />}
+            title="아직 번역한 문장이 없습니다"
+            description="오늘 하고 싶었던 말 한 문장부터 중국어로 바꿔 보세요."
+          />
+        ) : filtered.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border-strong/70 px-4 py-8 text-center text-caption text-muted">
+            조건에 맞는 문장이 없습니다.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {filtered.map((p) => (
+              <li key={p.id}>
+                <PhraseCard
+                  phrase={p}
+                  showPinyin={showPinyin}
+                  preferredLevel={level}
+                  highlight={p.id === lastId}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}

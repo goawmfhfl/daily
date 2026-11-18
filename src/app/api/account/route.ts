@@ -13,6 +13,7 @@ export const DELETE = handler(async () => {
     supabase.from("entries").delete().eq("user_id", user.id),
     supabase.from("habits").delete().eq("user_id", user.id),
     supabase.from("experiences").delete().eq("user_id", user.id),
+    supabase.from("zh_phrases").delete().eq("user_id", user.id),
   ];
   for (const s of steps) {
     const { error } = await s;

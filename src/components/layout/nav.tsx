@@ -8,6 +8,7 @@ import {
   Activity,
   FileText,
   ListFilter,
+  Languages,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -27,6 +28,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/timeline", label: "타임라인", icon: Activity },
   { href: "/reports", label: "리포트", icon: FileText },
   { href: "/entries", label: "기록 목록", icon: ListFilter },
+  { href: "/chinese", label: "중국어", icon: Languages },
 ];
 
 /** 메뉴에 손이 가는 순간(hover·focus·touch) 그 화면의 데이터를 미리 받아 둔다. 이미 캐시에 있으면 요청하지 않는다 */
@@ -105,7 +107,7 @@ export function BottomNav() {
   const prefetch = usePrefetchData();
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/90 backdrop-blur safe-bottom md:hidden">
-      <ul className="mx-auto grid max-w-lg grid-cols-5">
+      <ul className="mx-auto grid max-w-lg grid-cols-6">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = isActive(pathname, href);
           return (

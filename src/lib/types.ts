@@ -172,3 +172,37 @@ export type BriefResponse =
   | { status: "no_ai"; target_date: string; entry_ids: string[] }
   /** 오늘 이전 기록이 없음 */
   | { status: "none" };
+
+/* ───────── 중국어 학습 ───────── */
+
+export interface ZhSegment {
+  hanzi: string;
+  pinyin: string;
+  /** 이 단어의 한국어 뜻. 문장부호는 빈 문자열 */
+  ko: string;
+}
+
+export interface ZhTranslationRow {
+  id: string;
+  phrase_id: string;
+  user_id: string;
+  level: import("./constants").ZhLevel;
+  hanzi: string;
+  pinyin: string;
+  segments: ZhSegment[];
+  note: string | null;
+  model: string;
+  created_at: string;
+}
+
+export interface ZhPhraseRow {
+  id: string;
+  user_id: string;
+  source_ko: string;
+  favorite: boolean;
+  created_at: string;
+}
+
+export interface ZhPhraseWithTranslations extends ZhPhraseRow {
+  zh_translations: ZhTranslationRow[];
+}

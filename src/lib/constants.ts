@@ -110,3 +110,17 @@ export const DEFAULT_SETTINGS: UserSettings = {
   display_name: null,
   morning_brief: true,
 };
+
+/* ───────── 중국어 학습 ───────── */
+
+export const ZH_LEVELS = ["easy", "conversation", "native"] as const;
+export type ZhLevel = (typeof ZH_LEVELS)[number];
+
+export const ZH_LEVEL_META: Record<ZhLevel, { label: string; description: string }> = {
+  easy: { label: "쉬운 버전", description: "HSK 1~3급 어휘, 짧고 기본 어순" },
+  conversation: { label: "대화 버전", description: "실제 일상 회화체, 자연스러운 어기조사" },
+  native: { label: "원어민 버전", description: "관용 표현과 요즘 말투까지" },
+};
+
+/** 한 번에 번역할 수 있는 한국어 최대 길이 */
+export const ZH_MAX_INPUT = 500;

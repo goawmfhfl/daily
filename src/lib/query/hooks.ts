@@ -20,7 +20,10 @@ import type {
   ReportRow,
   TagSuggestion,
   BriefResponse,
+  ZhPhraseWithTranslations,
+  ZhTranslationRow,
 } from "@/lib/types";
+import type { ZhLevel } from "@/lib/constants";
 import type { ConfirmedTag } from "@/components/write/tag-confirm";
 import { qk } from "./keys";
 
@@ -183,6 +186,10 @@ export function prefetchRoute(qc: QueryClient, href: string) {
       break;
     case "/entries":
       p(qk.entries, fetchers.entries);
+      p(qk.me, fetchers.me);
+      break;
+    case "/chinese":
+      p(qk.chinese, () => api<{ phrases: ZhPhraseWithTranslations[] }>("/api/chinese").then((r) => r.phrases));
       p(qk.me, fetchers.me);
       break;
     case "/settings":
@@ -413,5 +420,74 @@ export function useDeleteReport() {
       qc.setQueryData<ReportRow[]>(qk.reports, (list) => list?.filter((r) => r.id !== id));
       void qc.invalidateQueries({ queryKey: qk.report(id), refetchType: "none" });
     },
+  });
+}
+
+/* ───────────────────────── 중국어 학습 ───────────────────────── */
+
+const fetchPhrases = () =>
+  api<{ phrases: ZhPhraseWithTranslations[] }>("/api/chinese").then((r) => r.phrases);
+
+export function useZhPhrases() {
+  return useQuery({ queryKey: qk.chinese, queryFn: fetchPhrases });
+}
+
+function patchPhrase(
+  qc: QueryClient,
+  id: string,
+  patch: (p: ZhPhraseWithTranslations) => ZhPhraseWithTranslations,
+) {
+  qc.setQueryData<ZhPhraseWithTranslations[]>(qk.chinese, (list) =>
+    list?.map((p) => (p.id === id ? patch(p) : p)),
+  );
+}
+
+export function useTranslateZh() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { source_ko: string; level: ZhLevel }) =>
+      api<{ phrase: ZhPhraseWithTranslations }>("/api/chinese", { method: "POST", body }).then(
+        (r) => r.phrase,
+      ),
+    onSuccess: (phrase) =>
+      qc.setQueryData<ZhPhraseWithTranslations[]>(qk.chinese, (list) =>
+        list ? [phrase, ...list.filter((p) => p.id !== phrase.id)] : [phrase],
+      ),
+  });
+}
+
+/** 같은 문장을 다른 난이도로 번역(이미 있으면 다시 번역) */
+export function useAddZhLevel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ phraseId, level }: { phraseId: string; level: ZhLevel }) =>
+      api<{ translation: ZhTranslationRow }>(`/api/chinese/${phraseId}/translations`, {
+        method: "POST",
+        body: { level },
+      }).then((r) => r.translation),
+    onSuccess: (t) =>
+      patchPhrase(qc, t.phrase_id, (p) => ({
+        ...p,
+        zh_translations: [...p.zh_translations.filter((x) => x.level !== t.level), t],
+      })),
+  });
+}
+
+export function useToggleZhFavorite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, favorite }: { id: string; favorite: boolean }) =>
+      api(`/api/chinese/${id}`, { method: "PATCH", body: { favorite } }),
+    onMutate: ({ id, favorite }) => patchPhrase(qc, id, (p) => ({ ...p, favorite })),
+    onError: (_e, { id, favorite }) => patchPhrase(qc, id, (p) => ({ ...p, favorite: !favorite })),
+  });
+}
+
+export function useDeleteZhPhrase() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/api/chinese/${id}`, { method: "DELETE" }),
+    onSuccess: (_r, id) =>
+      qc.setQueryData<ZhPhraseWithTranslations[]>(qk.chinese, (list) => list?.filter((p) => p.id !== id)),
   });
 }
