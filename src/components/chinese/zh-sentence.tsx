@@ -4,9 +4,8 @@ import * as React from "react";
 import { BookmarkCheck, BookmarkPlus } from "lucide-react";
 import type { ZhSegment } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useAddZhVocab, useZhVocab } from "@/lib/query/hooks";
+import { useAddZhVocab, useZhVocab, useZhVocabJobs } from "@/lib/query/hooks";
 import { Spinner } from "@/components/ui/spinner";
-import { useToast } from "@/components/ui/toast";
 
 const isPunct = (s: string) => !/\p{Script=Han}/u.test(s) && !/[A-Za-z0-9]/.test(s);
 
@@ -76,24 +75,16 @@ export function ZhSentence({
 }
 
 function WordDetail({ word, context }: { word: ZhSegment; context?: string }) {
-  const toast = useToast();
   const vocab = useZhVocab();
   const add = useAddZhVocab();
+  const jobs = useZhVocabJobs();
   const saved = vocab.data?.some((v) => v.kind !== "sentence" && v.hanzi === word.hanzi);
+  // 다른 화면에서 보낸 요청이어도 진행 중이면 표시
+  const pending = jobs.some((j) => j.status === "pending" && j.text === word.hanzi);
 
   function save() {
-    add.mutate(
-      { text: word.hanzi, context: context ?? null },
-      {
-        onSuccess: (res) =>
-          toast.push({
-            tone: res.duplicate ? "info" : "success",
-            title: res.duplicate ? "이미 단어장에 있는 단어예요" : "단어장에 추가했습니다",
-            description: res.duplicate ? undefined : `${res.item.hanzi} · ${res.item.meaning.split("\n")[0]}`,
-          }),
-        onError: (e) => toast.push({ tone: "error", title: "단어장에 넣지 못했습니다", description: e.message }),
-      },
-    );
+    // 결과 알림과 단어장 반영은 훅이 처리한다 (이 화면을 떠나도 끝까지)
+    add.mutate({ text: word.hanzi, context: context ?? null });
   }
 
   return (
@@ -104,7 +95,7 @@ function WordDetail({ word, context }: { word: ZhSegment; context?: string }) {
       <button
         type="button"
         onClick={save}
-        disabled={saved || add.isPending}
+        disabled={saved || pending}
         className={cn(
           "ml-auto inline-flex h-7 items-center gap-1 rounded-full px-2.5 font-medium transition-colors",
           saved
@@ -112,14 +103,14 @@ function WordDetail({ word, context }: { word: ZhSegment; context?: string }) {
             : "bg-surface text-foreground shadow-sm hover:bg-surface-3 disabled:opacity-70",
         )}
       >
-        {add.isPending ? (
+        {pending ? (
           <Spinner className="size-3.5" />
         ) : saved ? (
           <BookmarkCheck className="size-3.5" />
         ) : (
           <BookmarkPlus className="size-3.5" />
         )}
-        {saved ? "단어장에 있음" : add.isPending ? "예문 만드는 중…" : "단어장에 추가"}
+        {saved ? "단어장에 있음" : pending ? "예문 만드는 중…" : "단어장에 추가"}
       </button>
     </div>
   );

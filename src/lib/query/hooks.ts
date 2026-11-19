@@ -4,6 +4,7 @@ import * as React from "react";
 import { parseISO, subDays } from "date-fns";
 import {
   useMutation,
+  useMutationState,
   useQuery,
   useQueryClient,
   type QueryClient,
@@ -27,6 +28,7 @@ import type {
 import type { ZhLevel } from "@/lib/constants";
 import type { ConfirmedTag } from "@/components/write/tag-confirm";
 import { qk } from "./keys";
+import { useToast } from "@/components/ui/toast";
 
 /* ───────────────────────── 오늘 날짜 ───────────────────────── */
 
@@ -509,16 +511,84 @@ function prependVocab(qc: QueryClient, item: ZhVocabRow) {
   );
 }
 
-/** 단어·숙어·문장 입력 → AI 카드 생성 후 저장. 이미 있으면 duplicate */
+/** 단어장 추가 요청을 앱 전체에서 한 묶음으로 보기 위한 키 */
+export const ZH_VOCAB_ADD_KEY = ["zh-vocab", "add"] as const;
+
+type AddVocabVars = { text: string; context?: string | null };
+type AddVocabRes = { item: ZhVocabRow; duplicate: boolean };
+
+/**
+ * 단어·숙어·문장 입력 → AI 카드 생성 후 저장. 이미 있으면 duplicate.
+ * 요청마다 독립된 mutation 이라 여러 개를 동시에 보낼 수 있다.
+ * 캐시 갱신과 알림은 여기(훅 옵션)에서 처리하므로, 보낸 화면을 떠나도 끝까지 반영된다.
+ */
 export function useAddZhVocab() {
   const qc = useQueryClient();
+  const toast = useToast();
   return useMutation({
-    mutationFn: (body: { text: string; context?: string | null }) =>
-      api<{ item: ZhVocabRow; duplicate: boolean }>("/api/zh-vocab", { method: "POST", body }),
+    mutationKey: ZH_VOCAB_ADD_KEY,
+    mutationFn: (body: AddVocabVars) =>
+      api<AddVocabRes>("/api/zh-vocab", { method: "POST", body }),
     onSuccess: (res) => {
-      if (!res.duplicate) prependVocab(qc, res.item);
+      if (res.duplicate) {
+        toast.push({ tone: "info", title: "이미 단어장에 있는 항목이에요", description: res.item.hanzi });
+        return;
+      }
+      prependVocab(qc, res.item);
+      toast.push({
+        tone: "success",
+        title: "단어장에 추가했습니다",
+        description: `${res.item.hanzi} · ${res.item.meaning.split("\n")[0]}`,
+      });
+    },
+    onError: (e, vars) =>
+      toast.push({ tone: "error", title: `“${vars.text}” 카드를 만들지 못했습니다`, description: e.message }),
+  });
+}
+
+export interface ZhVocabJob {
+  mutationId: number;
+  text: string;
+  context: string | null;
+  status: "idle" | "pending" | "success" | "error";
+  error: string | null;
+  submittedAt: number;
+  itemId: string | null;
+  duplicate: boolean;
+}
+
+/** 진행 중·실패·완료된 단어장 추가 요청 목록 (화면을 오가도 유지) */
+export function useZhVocabJobs(): ZhVocabJob[] {
+  return useMutationState({
+    filters: { mutationKey: ZH_VOCAB_ADD_KEY },
+    select: (m) => {
+      const vars = m.state.variables as AddVocabVars | undefined;
+      const data = m.state.data as AddVocabRes | undefined;
+      return {
+        mutationId: m.mutationId,
+        text: vars?.text ?? "",
+        context: vars?.context ?? null,
+        status: m.state.status,
+        error: m.state.error ? (m.state.error as Error).message : null,
+        submittedAt: m.state.submittedAt,
+        itemId: data?.item.id ?? null,
+        duplicate: data?.duplicate ?? false,
+      };
     },
   });
+}
+
+/** 끝난 요청(주로 실패)을 목록에서 치운다 */
+export function useDismissZhVocabJob() {
+  const qc = useQueryClient();
+  return React.useCallback(
+    (mutationId: number) => {
+      const cache = qc.getMutationCache();
+      const m = cache.getAll().find((x) => x.mutationId === mutationId);
+      if (m) cache.remove(m);
+    },
+    [qc],
+  );
 }
 
 /** 번역 카드의 문장을 단어장에 저장 */

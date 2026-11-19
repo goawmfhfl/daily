@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { BookOpen, Plus, Search, Sparkles } from "lucide-react";
+import { AlertCircle, BookOpen, Plus, RotateCw, Search, Sparkles, X } from "lucide-react";
 import {
   ZH_VOCAB_KINDS,
   ZH_VOCAB_KIND_LABEL,
@@ -9,7 +9,13 @@ import {
   type ZhVocabKind,
 } from "@/lib/constants";
 import type { ZhVocabRow } from "@/lib/types";
-import { useAddZhVocab } from "@/lib/query/hooks";
+import {
+  useAddZhVocab,
+  useDismissZhVocabJob,
+  useZhVocabJobs,
+  type ZhVocabJob,
+} from "@/lib/query/hooks";
+import { Spinner } from "@/components/ui/spinner";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,36 +41,72 @@ export function VocabPanel({
 }) {
   const toast = useToast();
   const add = useAddZhVocab();
+  const jobs = useZhVocabJobs();
+  const dismiss = useDismissZhVocabJob();
   const [text, setText] = React.useState("");
   const [filter, setFilter] = React.useState<Filter>("all");
   const [q, setQ] = React.useState("");
-  const [focusId, setFocusId] = React.useState<string | null>(null);
+  /** 중복 입력으로 찾아간 카드 (언제 찾아갔는지와 함께) */
+  const [jump, setJump] = React.useState<{ id: string; at: number } | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const cardRefs = React.useRef(new Map<string, HTMLElement>());
 
   const trimmed = text.trim();
+  // 진행 중·실패한 요청은 위에 카드로, 최근 것이 위로
+  const active = React.useMemo(
+    () =>
+      jobs
+        .filter((j) => j.status === "pending" || j.status === "error")
+        .sort((a, b) => b.submittedAt - a.submittedAt),
+    [jobs],
+  );
+  const pendingCount = active.filter((j) => j.status === "pending").length;
 
+  // 가장 최근 사건(새로 완성된 카드 또는 중복으로 찾아간 카드)을 강조
+  const focusId = React.useMemo(() => {
+    const done = jobs
+      .filter((j) => j.status === "success" && j.itemId && !j.duplicate)
+      .sort((a, b) => b.submittedAt - a.submittedAt)[0];
+    if (jump && (!done || jump.at > done.submittedAt)) return jump.id;
+    return done?.itemId ?? null;
+  }, [jobs, jump]);
+
+  function goTo(id: string) {
+    setFilter("all");
+    setQ("");
+    setJump({ id, at: Date.now() });
+    requestAnimationFrame(() =>
+      cardRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "center" }),
+    );
+  }
+
+  /**
+   * 보내자마자 입력창을 비워 다음 단어를 바로 쓸 수 있게 한다.
+   * 이미 있거나 만드는 중인 항목은 요청을 보내지 않는다.
+   */
   function submit(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!trimmed || add.isPending) return;
-    add.mutate(
-      { text: trimmed },
-      {
-        onSuccess: (res) => {
-          setText("");
-          setFilter("all");
-          setQ("");
-          setFocusId(res.item.id);
-          if (res.duplicate) {
-            toast.push({ tone: "info", title: "이미 단어장에 있는 항목이에요", description: res.item.hanzi });
-            // 목록이 다시 그려진 뒤 그 카드로 이동
-            requestAnimationFrame(() =>
-              cardRefs.current.get(res.item.id)?.scrollIntoView({ behavior: "smooth", block: "center" }),
-            );
-          }
-        },
-        onError: (err) => toast.push({ tone: "error", title: "카드를 만들지 못했습니다", description: err.message }),
-      },
-    );
+    if (!trimmed) return;
+    const existing = items.find((v) => v.hanzi === trimmed || v.input === trimmed);
+    if (existing) {
+      toast.push({ tone: "info", title: "이미 단어장에 있는 항목이에요", description: existing.hanzi });
+      setText("");
+      goTo(existing.id);
+      return;
+    }
+    if (active.some((j) => j.status === "pending" && j.text === trimmed)) {
+      toast.push({ tone: "info", title: "지금 만드는 중이에요", description: trimmed });
+      setText("");
+      return;
+    }
+    add.mutate({ text: trimmed });
+    setText("");
+    inputRef.current?.focus();
+  }
+
+  function retry(job: ZhVocabJob) {
+    dismiss(job.mutationId);
+    add.mutate({ text: job.text, context: job.context });
   }
 
   const counts = React.useMemo(() => {
@@ -93,20 +135,25 @@ export function VocabPanel({
         <CardBody className="space-y-3">
           <form onSubmit={submit} className="flex gap-2">
             <Input
+              ref={inputRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                // 한글 조합 중 Enter 는 글자 확정용이라 보내지 않는다
+                if (e.key === "Enter" && e.nativeEvent.isComposing) e.preventDefault();
+              }}
               maxLength={ZH_VOCAB_MAX_INPUT}
-              disabled={add.isPending}
+              enterKeyHint="send"
               placeholder="단어·숙어·문장 입력 (예: 来得及, 马马虎虎, 여유가 없다)"
               className="h-11 text-[1.0625rem]"
             />
-            <Button type="submit" size="lg" className="h-11" disabled={!trimmed || !aiAvailable} loading={add.isPending}>
+            <Button type="submit" size="lg" className="h-11" disabled={!trimmed || !aiAvailable}>
               <Plus className="size-4" /> 추가
             </Button>
           </form>
           <p className="flex items-center gap-1.5 text-caption text-subtle">
             <Sparkles className="size-3.5 text-accent" />
-            중국어나 한국어로 넣으면 AI가 병음, 뜻, 해석, 예문 3개를 만들어 함께 저장합니다.
+            중국어나 한국어로 넣으면 AI가 병음, 뜻, 해석, 예문 3개를 만들어 함께 저장합니다. 기다리지 않고 계속 넣어도 됩니다.
           </p>
           {!aiAvailable && (
             <p className="text-caption text-warning">OPENAI_API_KEY 가 설정되지 않아 카드를 만들 수 없습니다.</p>
@@ -115,7 +162,12 @@ export function VocabPanel({
       </Card>
 
       <section className="space-y-3">
-        <SectionTitle action={pinyinToggle}>{`단어장 ${items.length}`}</SectionTitle>
+        <SectionTitle action={pinyinToggle}>
+          {`단어장 ${items.length}`}
+          {pendingCount > 0 && (
+            <span className="ml-2 normal-case tracking-normal text-accent">· {pendingCount}개 만드는 중</span>
+          )}
+        </SectionTitle>
 
         {items.length > 0 && (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -139,19 +191,17 @@ export function VocabPanel({
           </div>
         )}
 
-        {add.isPending && (
-          <div className="surface-card space-y-3 px-5 py-5" aria-busy>
-            <p className="flex items-center gap-2 text-caption text-muted">
-              <Sparkles className="size-4 animate-pulse-soft text-accent" />
-              “{add.variables?.text}” 카드를 만드는 중…
-            </p>
-            <Skeleton className="h-8 w-32" />
-            <Skeleton className="h-3 w-2/3" />
-            <Skeleton className="h-3 w-1/2" />
-          </div>
+        {active.length > 0 && (
+          <ul className="space-y-2">
+            {active.map((j) => (
+              <li key={j.mutationId}>
+                <JobCard job={j} onRetry={() => retry(j)} onDismiss={() => dismiss(j.mutationId)} />
+              </li>
+            ))}
+          </ul>
         )}
 
-        {items.length === 0 && !add.isPending ? (
+        {items.length === 0 && active.length === 0 ? (
           <EmptyState
             icon={<BookOpen className="size-5" />}
             title="단어장이 비어 있습니다"
@@ -179,6 +229,57 @@ export function VocabPanel({
           </ul>
         )}
       </section>
+    </div>
+  );
+}
+
+/** 만드는 중이거나 실패한 요청 하나 */
+function JobCard({
+  job,
+  onRetry,
+  onDismiss,
+}: {
+  job: ZhVocabJob;
+  onRetry: () => void;
+  onDismiss: () => void;
+}) {
+  if (job.status === "error") {
+    return (
+      <div className="flex items-start gap-3 rounded-lg border border-danger/30 bg-danger-soft/50 px-4 py-3 animate-fade-in">
+        <AlertCircle className="mt-0.5 size-4 shrink-0 text-danger" />
+        <div className="min-w-0 flex-1">
+          <p className="text-caption font-semibold">
+            <span lang="zh-CN">“{job.text}”</span> 카드를 만들지 못했습니다
+          </p>
+          {job.error && <p className="mt-0.5 text-caption text-muted">{job.error}</p>}
+        </div>
+        <Button variant="secondary" size="sm" onClick={onRetry}>
+          <RotateCw className="size-3.5" /> 다시 시도
+        </Button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="닫기"
+          className="rounded-md p-1.5 text-subtle hover:bg-surface-2 hover:text-foreground"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="surface-card flex items-center gap-3 px-4 py-3 animate-fade-in" aria-busy>
+      <Spinner className="size-4 text-accent" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-body font-medium">
+          <span lang="zh-CN">{job.text}</span>
+        </p>
+        <p className="text-micro text-subtle">병음 · 뜻 · 예문 만드는 중</p>
+      </div>
+      <div className="hidden w-28 space-y-1.5 sm:block" aria-hidden>
+        <Skeleton className="h-2" />
+        <Skeleton className="h-2 w-2/3" />
+      </div>
     </div>
   );
 }
