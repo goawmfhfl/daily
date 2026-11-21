@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { Check, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
 import { ZH_VOCAB_KIND_LABEL } from "@/lib/constants";
 import type { ZhVocabRow } from "@/lib/types";
 import { cn, relativeDayLabel, todayKey } from "@/lib/utils";
-import { useDeleteZhVocab } from "@/lib/query/hooks";
+import { useDeleteZhVocab, useReviewZhVocab } from "@/lib/query/hooks";
+import { dueLabel, isStudyToday, nextKnowLabel, STATUS_META, vocabStatus, type ReviewAction } from "@/lib/zh-review";
+import { StageDots } from "./stage-dots";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -18,10 +20,23 @@ const KIND_TONE = { word: "accent", idiom: "warning", sentence: "neutral" } as c
 /** 단어장 카드: 앞면은 한자·병음·뜻, 펼치면 해석과 예문 */
 export const VocabCard = React.forwardRef<
   HTMLElement,
-  { item: ZhVocabRow; showPinyin: boolean; hide?: boolean; highlight?: boolean }
->(function VocabCard({ item, showPinyin, hide = false, highlight }, ref) {
+  { item: ZhVocabRow; showPinyin: boolean; hide?: boolean; today: string; highlight?: boolean }
+>(function VocabCard({ item, showPinyin, hide = false, today, highlight }, ref) {
   const toast = useToast();
   const del = useDeleteZhVocab();
+  const review = useReviewZhVocab();
+  const status = vocabStatus(item, today);
+  const meta = STATUS_META[status];
+
+  function mark(action: ReviewAction, done?: string) {
+    review.mutate(
+      { id: item.id, action },
+      {
+        onSuccess: () => done && toast.push({ tone: "success", title: done }),
+        onError: (e) => toast.push({ tone: "error", title: "저장하지 못했습니다", description: e.message }),
+      },
+    );
+  }
   const [open, setOpen] = React.useState(!!highlight);
   const [confirm, setConfirm] = React.useState(false);
 
@@ -44,6 +59,7 @@ export const VocabCard = React.forwardRef<
       <div className="px-5 pt-4">
         <div className="flex items-center gap-2">
           <Badge tone={KIND_TONE[item.kind]}>{ZH_VOCAB_KIND_LABEL[item.kind]}</Badge>
+          <span className={cn("rounded-full px-2 py-0.5 text-micro font-semibold", meta.tone)}>{meta.short}</span>
           {item.part_of_speech && <span className="text-micro text-subtle">{item.part_of_speech}</span>}
           <span className="ml-auto text-micro text-subtle">
             {relativeDayLabel(todayKey(new Date(item.created_at)), todayKey())}
@@ -83,13 +99,57 @@ export const VocabCard = React.forwardRef<
         </div>
       </div>
 
+      {/* 암기 체크: 시험 없이 스스로. 외우면 내일 → 3일 → 1주 → 2주 → 1달 → 3달 뒤 다시 나온다 */}
+      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border px-5 py-2.5">
+        <StageDots stage={item.stage} />
+        <span className="text-micro text-subtle">
+          {status === "scheduled"
+            ? dueLabel(item.due_on, today)
+            : status === "mastered"
+              ? "더 이상 복습하지 않아요"
+              : status === "learning"
+                ? "오늘 다시 외워 보세요"
+                : status === "due"
+                  ? "복습할 때가 됐어요"
+                  : "아직 외우지 않음"}
+        </span>
+        <div className="ml-auto flex items-center gap-1">
+          {isStudyToday(status) ? (
+            <>
+              {status === "new" && (
+                <Button variant="ghost" size="sm" onClick={() => mark("master", "완전히 외운 단어로 옮겼어요")}>
+                  이미 알아요
+                </Button>
+              )}
+              {status !== "new" && (
+                <Button variant="ghost" size="sm" onClick={() => mark("again")} title="외우는 중으로">
+                  <RotateCcw className="size-3.5" /> 아직
+                </Button>
+              )}
+              <Button
+                variant="soft"
+                size="sm"
+                onClick={() => mark("know", `외웠어요 · ${nextKnowLabel(item.stage)} 다시 나와요`)}
+                title={`${nextKnowLabel(item.stage)} 다시 복습`}
+              >
+                <Check className="size-3.5" /> 외웠어요
+              </Button>
+            </>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={() => mark("again", "외우는 중으로 옮겼어요")}>
+              <RotateCcw className="size-3.5" /> 다시 외우기
+            </Button>
+          )}
+        </div>
+      </div>
+
       {hasDetail && (
         <>
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
-            className="mt-3 flex w-full items-center gap-1.5 border-t border-border px-5 py-2.5 text-caption font-medium text-muted transition-colors hover:bg-surface-2/60 hover:text-foreground"
+            className="flex w-full items-center gap-1.5 border-t border-border px-5 py-2.5 text-caption font-medium text-muted transition-colors hover:bg-surface-2/60 hover:text-foreground"
           >
             {isSentence ? "표현 포인트 · 다르게 말하기" : "해석 · 예문"}
             <ChevronDown className={cn("ml-auto size-4 transition-transform", open && "rotate-180")} />
@@ -127,7 +187,6 @@ export const VocabCard = React.forwardRef<
           )}
         </>
       )}
-      {!hasDetail && <div className="h-4" />}
 
       <Dialog
         open={confirm}

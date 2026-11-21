@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -10,6 +11,8 @@ import {
   ListFilter,
   Languages,
   Settings,
+  Pin,
+  PinOff,
   type LucideIcon,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -45,18 +48,128 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
+/* 사이드바 고정 여부 (기기별 편의 설정). 기본은 숨김: 왼쪽 가장자리에 마우스를 대면 나타난다 */
+const PIN_KEY = "daily:sidebar-pinned";
+const pinListeners = new Set<() => void>();
+function readPinned() {
+  try {
+    return localStorage.getItem(PIN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function writePinned(v: boolean) {
+  try {
+    localStorage.setItem(PIN_KEY, v ? "1" : "0");
+  } catch {}
+  pinListeners.forEach((l) => l());
+}
+function subscribePinned(l: () => void) {
+  pinListeners.add(l);
+  return () => pinListeners.delete(l);
+}
+
+/** 마우스가 떠난 뒤 닫히기까지 (살짝 벗어나도 바로 닫히지 않게) */
+const CLOSE_DELAY = 280;
+
 export function Sidebar() {
+  const pinned = React.useSyncExternalStore(subscribePinned, readPinned, () => false);
+  const [open, setOpen] = React.useState(false);
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pathname = usePathname();
+
+  const show = React.useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    setOpen(true);
+  }, []);
+  const hide = React.useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setOpen(false), CLOSE_DELAY);
+  }, []);
+
+  // 화면을 옮기면 접는다
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOpen(false);
+  }, [pathname]);
+  React.useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+
+  if (pinned) {
+    return (
+      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-surface/60 px-4 py-6 backdrop-blur md:flex">
+        <SidebarBody pinned onTogglePin={() => writePinned(false)} />
+      </aside>
+    );
+  }
+
+  return (
+    <>
+      {/* 왼쪽 가장자리 감지 영역 + 손잡이 (터치 화면에선 눌러서 연다) */}
+      <div
+        className="group fixed inset-y-0 left-0 z-40 hidden w-3 md:block"
+        onMouseEnter={show}
+        onMouseLeave={hide}
+      >
+        <button
+          type="button"
+          aria-label="메뉴 열기"
+          onClick={() => (open ? setOpen(false) : show())}
+          onFocus={show}
+          className={cn(
+            "absolute left-1 top-1/2 h-12 w-1 -translate-y-1/2 rounded-full bg-border-strong/70 transition-[opacity,background-color,height] duration-200 group-hover:h-16 group-hover:bg-accent",
+            open && "opacity-0",
+          )}
+        />
+      </div>
+
+      {/* 열렸을 때 바깥을 누르면 닫힘 (터치용) */}
+      {open && <div className="fixed inset-0 z-40 hidden md:block" onClick={() => setOpen(false)} aria-hidden />}
+
+      <aside
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) hide();
+        }}
+        inert={!open}
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 hidden w-60 flex-col border-r border-border bg-surface/95 px-4 py-6 shadow-lg backdrop-blur-md transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:flex",
+          open ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-full opacity-0",
+        )}
+      >
+        <SidebarBody pinned={false} onTogglePin={() => writePinned(true)} />
+      </aside>
+    </>
+  );
+}
+
+function SidebarBody({ pinned, onTogglePin }: { pinned: boolean; onTogglePin: () => void }) {
   const pathname = usePathname();
   const prefetch = usePrefetchData();
   return (
-    <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-surface/60 px-4 py-6 backdrop-blur md:flex">
-      <Link href="/" className="flex items-center gap-2.5 px-2">
-        <Logo />
-        <div className="leading-tight">
-          <p className="text-heading font-semibold tracking-tight">Daily</p>
-          <p className="text-micro text-subtle">나를 연구하는 기록</p>
-        </div>
-      </Link>
+    <>
+      <div className="flex items-center gap-2">
+        <Link href="/" className="flex min-w-0 flex-1 items-center gap-2.5 px-2">
+          <Logo />
+          <div className="leading-tight">
+            <p className="text-heading font-semibold tracking-tight">Daily</p>
+            <p className="text-micro text-subtle">나를 연구하는 기록</p>
+          </div>
+        </Link>
+        <button
+          type="button"
+          onClick={onTogglePin}
+          aria-pressed={pinned}
+          aria-label={pinned ? "메뉴 자동 숨김" : "메뉴 고정"}
+          title={pinned ? "자동으로 숨기기" : "항상 펼쳐 두기"}
+          className="rounded-md p-1.5 text-subtle transition-colors hover:bg-surface-2 hover:text-foreground"
+        >
+          {pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+        </button>
+      </div>
 
       <nav className="mt-8 flex flex-1 flex-col gap-0.5">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
@@ -98,7 +211,7 @@ export function Sidebar() {
         <Settings className="size-[18px]" strokeWidth={1.8} />
         설정
       </Link>
-    </aside>
+    </>
   );
 }
 

@@ -28,6 +28,7 @@ import type {
   ZhVocabRow,
 } from "@/lib/types";
 import type { ZhLevel } from "@/lib/constants";
+import { applyReview, type ReviewAction } from "@/lib/zh-review";
 import type { WeatherNow } from "@/lib/weather";
 import type { ConfirmedTag } from "@/components/write/tag-confirm";
 import { qk } from "./keys";
@@ -664,6 +665,32 @@ export function useDeleteZhVocab() {
     mutationFn: (id: string) => api(`/api/zh-vocab/${id}`, { method: "DELETE" }),
     onSuccess: (_r, id) =>
       qc.setQueryData<ZhVocabRow[]>(qk.zhVocab, (list) => list?.filter((v) => v.id !== id)),
+  });
+}
+
+/**
+ * 암기 체크. 같은 규칙으로 화면을 먼저 바꾸고, 실패하면 되돌린다.
+ * 복습 세션에서 연달아 눌러도 기다리지 않는다.
+ */
+export function useReviewZhVocab() {
+  const qc = useQueryClient();
+  const patch = (id: string, fn: (v: ZhVocabRow) => ZhVocabRow) =>
+    qc.setQueryData<ZhVocabRow[]>(qk.zhVocab, (list) => list?.map((v) => (v.id === id ? fn(v) : v)));
+  return useMutation({
+    mutationFn: ({ id, action }: { id: string; action: ReviewAction }) =>
+      api<{ item: ZhVocabRow }>(`/api/zh-vocab/${id}`, {
+        method: "PATCH",
+        body: { action, today: todayKey() },
+      }).then((r) => r.item),
+    onMutate: ({ id, action }) => {
+      const before = qc.getQueryData<ZhVocabRow[]>(qk.zhVocab)?.find((v) => v.id === id);
+      patch(id, (v) => ({ ...v, ...applyReview(v, action, todayKey()) }));
+      return { before };
+    },
+    onSuccess: (item) => patch(item.id, () => item),
+    onError: (_e, { id }, ctx) => {
+      if (ctx?.before) patch(id, () => ctx.before!);
+    },
   });
 }
 

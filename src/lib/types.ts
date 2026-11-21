@@ -238,6 +238,12 @@ export interface ZhVocabRow {
   segments: ZhSegment[];
   source_translation_id: string | null;
   model: string | null;
+  /** 0 외우지 않음·외우는 중, 1~6 외움(복습 단계), 7 완전히 외움 */
+  stage: number;
+  /** 다음 복습 날짜 (yyyy-MM-dd) */
+  due_on: string | null;
+  review_count: number;
+  last_reviewed_at: string | null;
   created_at: string;
 }
 

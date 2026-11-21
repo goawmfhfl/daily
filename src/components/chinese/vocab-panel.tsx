@@ -12,6 +12,7 @@ import type { ZhVocabRow } from "@/lib/types";
 import {
   useAddZhVocab,
   useDismissZhVocabJob,
+  useToday,
   useZhVocabJobs,
   type ZhVocabJob,
 } from "@/lib/query/hooks";
@@ -25,6 +26,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { VocabCard } from "./vocab-card";
+import { ReviewSummary, buildQueue } from "./review-summary";
+import { ReviewSession } from "./review-session";
+import { vocabStatus, type VocabStatus } from "@/lib/zh-review";
+import { todayKey } from "@/lib/utils";
 
 type Filter = "all" | ZhVocabKind;
 
@@ -49,6 +54,10 @@ export function VocabPanel({
   const [text, setText] = React.useState("");
   const [filter, setFilter] = React.useState<Filter>("all");
   const [q, setQ] = React.useState("");
+  const [status, setStatus] = React.useState<VocabStatus | null>(null);
+  /** 진행 중인 외우기 세션 (시작할 때 순서를 고정) */
+  const [session, setSession] = React.useState<{ key: number; queue: string[] } | null>(null);
+  const today = useToday() ?? todayKey();
   /** 중복 입력으로 찾아간 카드 (언제 찾아갔는지와 함께) */
   const [jump, setJump] = React.useState<{ id: string; at: number } | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -76,6 +85,7 @@ export function VocabPanel({
 
   function goTo(id: string) {
     setFilter("all");
+    setStatus(null);
     setQ("");
     setJump({ id, at: Date.now() });
     requestAnimationFrame(() =>
@@ -122,6 +132,7 @@ export function VocabPanel({
     const needle = q.trim().toLowerCase();
     return items.filter((v) => {
       if (filter !== "all" && v.kind !== filter) return false;
+      if (status && vocabStatus(v, today) !== status) return false;
       if (!needle) return true;
       return (
         v.hanzi.includes(needle) ||
@@ -130,7 +141,12 @@ export function VocabPanel({
         v.input.toLowerCase().includes(needle)
       );
     });
-  }, [items, filter, q]);
+  }, [items, filter, q, status, today]);
+
+  function startSession() {
+    const queue = buildQueue(items, today);
+    if (queue.length) setSession({ key: Date.now(), queue });
+  }
 
   return (
     <div className="space-y-8">
@@ -163,6 +179,27 @@ export function VocabPanel({
           )}
         </CardBody>
       </Card>
+
+      {items.length > 0 && (
+        <ReviewSummary
+          items={items}
+          today={today}
+          status={status}
+          onStatusChange={setStatus}
+          onStart={startSession}
+        />
+      )}
+      {session && (
+        <ReviewSession
+          key={session.key}
+          open
+          onClose={() => setSession(null)}
+          queue={session.queue}
+          items={items}
+          today={today}
+          showPinyin={showPinyin}
+        />
+      )}
 
       <section className="space-y-3">
         <SectionTitle action={pinyinToggle}>
@@ -226,6 +263,7 @@ export function VocabPanel({
                   item={v}
                   showPinyin={showPinyin}
                   hide={hide}
+                  today={today}
                   highlight={v.id === focusId}
                 />
               </li>
