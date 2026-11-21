@@ -23,6 +23,7 @@ import type {
   BriefResponse,
   EmotionInsightResponse,
   ZhPhraseWithTranslations,
+  ZhPair,
   ZhTranslationRow,
   ZhVocabRow,
 } from "@/lib/types";
@@ -505,6 +506,28 @@ export function useAddZhLevel() {
         ...p,
         zh_translations: [...p.zh_translations.filter((x) => x.level !== t.level), t],
       })),
+  });
+}
+
+/**
+ * 번역을 문장별 짝으로. 저장본이 있으면 요청하지 않고,
+ * 처음 계산한 결과는 문장 목록 캐시에도 넣어 다시 받지 않게 한다.
+ */
+export function useZhPairs(t: ZhTranslationRow | undefined, enabled: boolean) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: qk.zhPairs(t?.id ?? "none", t?.created_at ?? ""),
+    enabled: enabled && !!t && !t.pairs,
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { pairs } = await api<{ pairs: ZhPair[] }>(`/api/zh-pairs/${t!.id}`, { method: "POST" });
+      patchPhrase(qc, t!.phrase_id, (p) => ({
+        ...p,
+        zh_translations: p.zh_translations.map((x) => (x.id === t!.id ? { ...x, pairs } : x)),
+      }));
+      return pairs;
+    },
+    initialData: t?.pairs ?? undefined,
   });
 }
 

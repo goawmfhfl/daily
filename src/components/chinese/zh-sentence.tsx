@@ -17,16 +17,20 @@ export function ZhSentence({
   segments,
   showPinyin,
   context,
+  size = "lg",
   className,
 }: {
   segments: ZhSegment[];
   showPinyin: boolean;
+  /** lg: 카드 본문, md: 문장별 목록 */
+  size?: "lg" | "md";
   /** 단어장에 넣을 때 뜻을 문맥에 맞추기 위한 문장 전체 */
   context?: string;
   className?: string;
 }) {
   const [picked, setPicked] = React.useState<number | null>(null);
   const word = picked !== null ? segments[picked] : null;
+  const glyph = size === "lg" ? "text-[1.6rem]" : "text-[1.3rem]";
 
   return (
     <div className={className}>
@@ -36,7 +40,7 @@ export function ZhSentence({
             // 빈 병음 줄을 같은 높이로 두어 한자와 같은 기준선에 앉힌다
             return (
               <ruby key={i} className="-ml-1.5 py-0.5 [ruby-position:under]" aria-hidden>
-                <span className="text-[1.6rem] text-foreground/70">{s.hanzi}</span>
+                <span className={cn(glyph, "text-foreground/70")}>{s.hanzi}</span>
                 <rt className="invisible pt-1 text-[0.7rem]">&nbsp;</rt>
               </ruby>
             );
@@ -55,7 +59,7 @@ export function ZhSentence({
               )}
             >
               <ruby className="[ruby-position:under]">
-                <span className="text-[1.6rem] font-medium tracking-wide text-foreground">{s.hanzi}</span>
+                <span className={cn(glyph, "font-medium tracking-wide text-foreground")}>{s.hanzi}</span>
                 <rt
                   className={cn(
                     "pt-1 text-[0.7rem] font-normal tracking-normal text-subtle",

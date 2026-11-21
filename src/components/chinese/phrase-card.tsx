@@ -17,16 +17,22 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/components/ui/toast";
-import { ZhSentence } from "./zh-sentence";
+import { SelfCover, ZhStudy, type ZhView } from "./zh-study";
 
 export function PhraseCard({
   phrase,
   showPinyin,
   preferredLevel,
   highlight,
+  view,
+  hide,
 }: {
   phrase: ZhPhraseWithTranslations;
   showPinyin: boolean;
+  /** 문단 통째로 / 한 문장씩 */
+  view: ZhView;
+  /** 중국어를 가리고 한국어만 보며 떠올려 보기 */
+  hide: boolean;
   /** 처음 보여 줄 난이도. 그 번역이 없으면 가지고 있는 것 중 첫 번째 */
   preferredLevel: ZhLevel;
   highlight?: boolean;
@@ -110,7 +116,19 @@ export function PhraseCard({
           <p className="text-micro font-medium text-subtle">
             {relativeDayLabel(todayKey(new Date(phrase.created_at)), todayKey())}
           </p>
-          <p className="mt-0.5 text-body text-foreground/85">{phrase.source_ko}</p>
+          {/* 문장별 보기에서는 한국어가 문장마다 붙으므로 원문을 접는다 */}
+          {view === "paragraph" ? (
+            <p
+              className={cn(
+                "mt-0.5 whitespace-pre-line",
+                hide ? "text-[1.0625rem] font-medium leading-relaxed text-foreground" : "text-body text-foreground/85",
+              )}
+            >
+              {phrase.source_ko}
+            </p>
+          ) : (
+            <p className="mt-0.5 line-clamp-1 text-caption text-subtle">{phrase.source_ko}</p>
+          )}
         </div>
         <button
           type="button"
@@ -161,11 +179,14 @@ export function PhraseCard({
           </div>
         ) : current ? (
           <>
-            <ZhSentence key={current.id} segments={current.segments} showPinyin={showPinyin} context={current.hanzi} />
+            <ZhStudy key={current.id} translation={current} view={view} hide={hide} showPinyin={showPinyin} />
             {current.note && (
-              <p className="mt-4 border-l-2 border-accent/50 pl-3 text-caption leading-relaxed text-muted">
-                {current.note}
-              </p>
+              // 학습 포인트는 중국어 표현을 인용하므로 가리기 중엔 함께 덮는다
+              <SelfCover key={`${current.id}:${hide}`} hide={hide} label="학습 포인트 보기" className="mt-4">
+                <p className="border-l-2 border-accent/50 pl-3 text-caption leading-relaxed text-muted">
+                  {current.note}
+                </p>
+              </SelfCover>
             )}
           </>
         ) : (

@@ -11,14 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { ZhSentence } from "./zh-sentence";
+import { SelfCover } from "./zh-study";
 
 const KIND_TONE = { word: "accent", idiom: "warning", sentence: "neutral" } as const;
 
 /** 단어장 카드: 앞면은 한자·병음·뜻, 펼치면 해석과 예문 */
 export const VocabCard = React.forwardRef<
   HTMLElement,
-  { item: ZhVocabRow; showPinyin: boolean; highlight?: boolean }
->(function VocabCard({ item, showPinyin, highlight }, ref) {
+  { item: ZhVocabRow; showPinyin: boolean; hide?: boolean; highlight?: boolean }
+>(function VocabCard({ item, showPinyin, hide = false, highlight }, ref) {
   const toast = useToast();
   const del = useDeleteZhVocab();
   const [open, setOpen] = React.useState(!!highlight);
@@ -57,19 +58,28 @@ export const VocabCard = React.forwardRef<
           </button>
         </div>
 
-        {/* 앞면 */}
-        <div className="mt-3">
-          {isSentence && item.segments.length > 0 ? (
-            <ZhSentence segments={item.segments} showPinyin={showPinyin} context={item.hanzi} />
-          ) : (
-            <div lang="zh-CN">
-              <p className={cn("font-medium tracking-wide", isSentence ? "text-[1.4rem]" : "text-[2rem] leading-tight")}>
-                {item.hanzi}
-              </p>
-              <p className={cn("mt-1 text-caption text-subtle", !showPinyin && "invisible")}>{item.pinyin}</p>
-            </div>
-          )}
-          <p className="mt-3 whitespace-pre-line text-body text-foreground/90">{item.meaning}</p>
+        {/* 앞면: 가리기 중엔 뜻을 먼저 크게, 중국어는 덮어 둔다 */}
+        <div className={cn("mt-3 flex", hide ? "flex-col-reverse" : "flex-col")}>
+          <SelfCover key={String(hide)} hide={hide} label="떠올려 본 뒤 눌러서 확인">
+            {isSentence && item.segments.length > 0 ? (
+              <ZhSentence segments={item.segments} showPinyin={showPinyin} context={item.hanzi} />
+            ) : (
+              <div lang="zh-CN">
+                <p className={cn("font-medium tracking-wide", isSentence ? "text-[1.4rem]" : "text-[2rem] leading-tight")}>
+                  {item.hanzi}
+                </p>
+                <p className={cn("mt-1 text-caption text-subtle", !showPinyin && "invisible")}>{item.pinyin}</p>
+              </div>
+            )}
+          </SelfCover>
+          <p
+            className={cn(
+              "whitespace-pre-line",
+              hide ? "mb-3 text-[1.0625rem] font-medium leading-relaxed text-foreground" : "mt-3 text-body text-foreground/90",
+            )}
+          >
+            {item.meaning}
+          </p>
         </div>
       </div>
 
@@ -87,9 +97,11 @@ export const VocabCard = React.forwardRef<
           {open && (
             <div className="space-y-4 border-t border-border bg-surface-2/40 px-5 py-4 animate-fade-in">
               {item.explanation && (
-                <p className="border-l-2 border-accent/50 pl-3 text-caption leading-relaxed text-muted">
-                  {item.explanation}
-                </p>
+                <SelfCover key={String(hide)} hide={hide} label="해석 보기">
+                  <p className="border-l-2 border-accent/50 pl-3 text-caption leading-relaxed text-muted">
+                    {item.explanation}
+                  </p>
+                </SelfCover>
               )}
               {item.examples.length > 0 && (
                 <ol className="space-y-3">
@@ -98,10 +110,14 @@ export const VocabCard = React.forwardRef<
                       <span className="mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-surface text-micro font-semibold text-subtle tabular">
                         {i + 1}
                       </span>
-                      <div className="min-w-0">
-                        <p lang="zh-CN" className="text-[1.0625rem] font-medium leading-snug">{ex.hanzi}</p>
-                        <p className={cn("mt-0.5 text-micro text-subtle", !showPinyin && "hidden")}>{ex.pinyin}</p>
-                        <p className="mt-0.5 text-caption text-muted">{ex.ko}</p>
+                      <div className={cn("flex min-w-0 flex-1", hide ? "flex-col-reverse" : "flex-col")}>
+                        <SelfCover key={String(hide)} hide={hide} label="눌러서 확인">
+                          <p lang="zh-CN" className="text-[1.0625rem] font-medium leading-snug">{ex.hanzi}</p>
+                          <p className={cn("mt-0.5 text-micro text-subtle", !showPinyin && "hidden")}>{ex.pinyin}</p>
+                        </SelfCover>
+                        <p className={cn("text-caption", hide ? "mb-1.5 text-foreground/90" : "mt-0.5 text-muted")}>
+                          {ex.ko}
+                        </p>
                       </div>
                     </li>
                   ))}

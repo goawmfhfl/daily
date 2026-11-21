@@ -29,7 +29,7 @@ export const POST = handler(async (req, { params }) => {
   const { data: translation, error } = await supabase
     .from("zh_translations")
     .upsert(
-      { phrase_id: id, user_id: user.id, level: parsed.data.level, ...t, created_at: new Date().toISOString() },
+      { phrase_id: id, user_id: user.id, level: parsed.data.level, ...t, pairs: null, created_at: new Date().toISOString() },
       { onConflict: "phrase_id,level" },
     )
     .select("*")

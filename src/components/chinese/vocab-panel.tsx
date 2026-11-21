@@ -31,11 +31,14 @@ type Filter = "all" | ZhVocabKind;
 export function VocabPanel({
   items,
   showPinyin,
+  hide,
   pinyinToggle,
   aiAvailable,
 }: {
   items: ZhVocabRow[];
   showPinyin: boolean;
+  /** 뜻만 보고 중국어 떠올리기 */
+  hide: boolean;
   pinyinToggle: React.ReactNode;
   aiAvailable: boolean;
 }) {
@@ -222,6 +225,7 @@ export function VocabPanel({
                   }}
                   item={v}
                   showPinyin={showPinyin}
+                  hide={hide}
                   highlight={v.id === focusId}
                 />
               </li>

@@ -22,6 +22,8 @@ export const qk = {
   emotionInsight: (weekStart: string) => ["emotion-insight", weekStart] as const,
   /** 중국어 학습: 번역한 문장 전체(난이도별 번역 포함) */
   chinese: ["chinese"] as const,
+  /** 번역 하나의 문장별 짝 (다시 번역하면 같은 id 라 만든 시각까지 키에 넣는다) */
+  zhPairs: (translationId: string, version: string) => ["chinese", "pairs", translationId, version] as const,
   /** 중국어 단어장 */
   zhVocab: ["zh-vocab"] as const,
   /** 고양시 현재 날씨 */

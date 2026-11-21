@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { BookOpen, Languages, Search, Sparkles } from "lucide-react";
+import { AlignLeft, BookOpen, EyeOff, Languages, ListOrdered, Search, Sparkles } from "lucide-react";
 import { ZH_LEVELS, ZH_LEVEL_META, ZH_MAX_INPUT, type ZhLevel } from "@/lib/constants";
 import { useMe, useTranslateZh, useZhPhrases, useZhVocab } from "@/lib/query/hooks";
 import { PageHeader, SectionTitle } from "@/components/ui/page-header";
@@ -15,11 +15,15 @@ import { PageSkeleton, QueryError } from "@/components/ui/query-state";
 import { useToast } from "@/components/ui/toast";
 import { PhraseCard } from "@/components/chinese/phrase-card";
 import { VocabPanel } from "@/components/chinese/vocab-panel";
+import type { ZhView } from "@/components/chinese/zh-study";
 import type { ZhPhraseWithTranslations, ZhVocabRow } from "@/lib/types";
 
 const LEVEL_KEY = "daily:zh-level";
 const PINYIN_KEY = "daily:zh-pinyin";
 const TAB_KEY = "daily:zh-tab";
+const VIEW_KEY = "daily:zh-view";
+const HIDE_KEY = "daily:zh-hide";
+const VIEWS = ["paragraph", "sentences"] as const;
 const TABS = ["translate", "vocab"] as const;
 type Tab = (typeof TABS)[number];
 
@@ -61,12 +65,16 @@ function Chinese({ phrases, vocab }: { phrases: ZhPhraseWithTranslations[]; voca
   const me = useMe();
   const [tab, setTab] = React.useState<Tab>("translate");
   const [showPinyin, setShowPinyin] = React.useState(true);
+  const [view, setView] = React.useState<ZhView>("paragraph");
+  const [hide, setHide] = React.useState(false);
 
   // 저장된 기기 설정은 화면이 뜬 뒤 읽는다 (정적 HTML 과 어긋나지 않게)
   React.useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTab(readLocal(TAB_KEY, "translate", TABS));
     setShowPinyin(readLocal(PINYIN_KEY, "on", ["on", "off"] as const) === "on");
+    setView(readLocal(VIEW_KEY, "paragraph", VIEWS));
+    setHide(readLocal(HIDE_KEY, "off", ["on", "off"] as const) === "on");
   }, []);
 
   const aiAvailable = me.data?.aiAvailable ?? true;
@@ -82,10 +90,27 @@ function Chinese({ phrases, vocab }: { phrases: ZhPhraseWithTranslations[]; voca
     });
   }
 
+  function changeView(v: ZhView) {
+    setView(v);
+    writeLocal(VIEW_KEY, v);
+  }
+  function toggleHide() {
+    setHide((v) => {
+      writeLocal(HIDE_KEY, v ? "off" : "on");
+      return !v;
+    });
+  }
+
+  // 가리기: 한국어만 보고 중국어를 떠올린 뒤 눌러서 확인 / 병음: 한자 아래 발음
   const pinyinToggle = (
-    <Chip size="sm" selected={showPinyin} onClick={togglePinyin}>
-      병음 보기
-    </Chip>
+    <div className="flex items-center gap-1.5">
+      <Chip size="sm" selected={hide} onClick={toggleHide} title="한국어만 보고 중국어로 말해 보기">
+        <EyeOff className="size-3.5" /> 중국어 가리기
+      </Chip>
+      <Chip size="sm" selected={showPinyin} onClick={togglePinyin}>
+        병음 보기
+      </Chip>
+    </div>
   );
 
   return (
@@ -113,11 +138,20 @@ function Chinese({ phrases, vocab }: { phrases: ZhPhraseWithTranslations[]; voca
         <TranslatePanel
           phrases={phrases}
           showPinyin={showPinyin}
+          view={view}
+          onViewChange={changeView}
+          hide={hide}
           pinyinToggle={pinyinToggle}
           aiAvailable={aiAvailable}
         />
       ) : (
-        <VocabPanel items={vocab} showPinyin={showPinyin} pinyinToggle={pinyinToggle} aiAvailable={aiAvailable} />
+        <VocabPanel
+          items={vocab}
+          showPinyin={showPinyin}
+          hide={hide}
+          pinyinToggle={pinyinToggle}
+          aiAvailable={aiAvailable}
+        />
       )}
     </div>
   );
@@ -126,11 +160,17 @@ function Chinese({ phrases, vocab }: { phrases: ZhPhraseWithTranslations[]; voca
 function TranslatePanel({
   phrases,
   showPinyin,
+  view,
+  onViewChange,
+  hide,
   pinyinToggle,
   aiAvailable,
 }: {
   phrases: ZhPhraseWithTranslations[];
   showPinyin: boolean;
+  view: ZhView;
+  onViewChange: (v: ZhView) => void;
+  hide: boolean;
   pinyinToggle: React.ReactNode;
   aiAvailable: boolean;
 }) {
@@ -234,6 +274,27 @@ function TranslatePanel({
         </SectionTitle>
 
         {phrases.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Segmented<ZhView>
+              value={view}
+              onChange={onViewChange}
+              size="sm"
+              options={[
+                { value: "paragraph", label: "문단", icon: <AlignLeft className="size-3.5" /> },
+                { value: "sentences", label: "문장별", icon: <ListOrdered className="size-3.5" /> },
+              ]}
+            />
+            <p className="text-caption text-subtle">
+              {hide
+                ? "한국어만 보고 중국어로 말해 본 뒤, 눌러서 맞춰 보세요."
+                : view === "sentences"
+                  ? "한 문장씩 나눠 외우기 좋게 보여 줍니다."
+                  : "중국어 가리기를 켜면 즉석 번역 연습을 할 수 있어요."}
+            </p>
+          </div>
+        )}
+
+        {phrases.length > 0 && (
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-subtle" />
@@ -269,6 +330,8 @@ function TranslatePanel({
                   showPinyin={showPinyin}
                   preferredLevel={level}
                   highlight={p.id === lastId}
+                  view={view}
+                  hide={hide}
                 />
               </li>
             ))}

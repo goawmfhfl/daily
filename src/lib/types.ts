@@ -193,8 +193,17 @@ export interface ZhTranslationRow {
   pinyin: string;
   segments: ZhSegment[];
   note: string | null;
+  /** 문장별 외우기용 짝. null 이면 아직 나누지 않음 */
+  pairs: ZhPair[] | null;
   model: string;
   created_at: string;
+}
+
+/** 한국어 한 문장 ↔ 중국어 한 문장. from/to 는 segments 인덱스 (to 미포함) */
+export interface ZhPair {
+  ko: string;
+  from: number;
+  to: number;
 }
 
 export interface ZhPhraseRow {
