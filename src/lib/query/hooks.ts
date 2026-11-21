@@ -27,6 +27,7 @@ import type {
   ZhVocabRow,
 } from "@/lib/types";
 import type { ZhLevel } from "@/lib/constants";
+import type { WeatherNow } from "@/lib/weather";
 import type { ConfirmedTag } from "@/components/write/tag-confirm";
 import { qk } from "./keys";
 import { useToast } from "@/components/ui/toast";
@@ -188,6 +189,7 @@ export function prefetchRoute(qc: QueryClient, href: string) {
 
   switch (href) {
     case "/":
+      p(qk.weather, () => api<{ weather: WeatherNow }>("/api/weather").then((r) => r.weather));
       p(qk.settings, fetchers.settings);
       p(qk.habits, fetchers.habits);
       p(qk.habitChecks(w.from, w.to), () => fetchers.habitChecks(w.from, w.to));
@@ -352,8 +354,8 @@ export function useToggleHabitCheck(today: string | null) {
 export function useCreateHabit() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) =>
-      api<{ habit: HabitRow }>("/api/habits", { method: "POST", body: { name } }),
+    mutationFn: (body: { name: string; weekdays?: number[] }) =>
+      api<{ habit: HabitRow }>("/api/habits", { method: "POST", body }),
     onSuccess: ({ habit }) =>
       qc.setQueryData<HabitRow[]>(qk.habits, (list) => (list ? [...list, habit] : list)),
   });
@@ -370,6 +372,7 @@ export function useUpdateHabit() {
       active?: boolean;
       name?: string;
       started_at?: string;
+      weekdays?: number[];
     }) =>
       api<{ habit: HabitRow }>(`/api/habits/${id}`, { method: "PATCH", body }),
     onSuccess: ({ habit }) =>
@@ -637,5 +640,18 @@ export function useDeleteZhVocab() {
     mutationFn: (id: string) => api(`/api/zh-vocab/${id}`, { method: "DELETE" }),
     onSuccess: (_r, id) =>
       qc.setQueryData<ZhVocabRow[]>(qk.zhVocab, (list) => list?.filter((v) => v.id !== id)),
+  });
+}
+
+/* ───────────────────────── 날씨 ───────────────────────── */
+
+/** 기록 화면 날씨: 10분 동안은 다시 묻지 않고, 화면을 켜 두면 15분마다 갱신 */
+export function useWeather() {
+  return useQuery({
+    queryKey: qk.weather,
+    queryFn: () => api<{ weather: WeatherNow }>("/api/weather").then((r) => r.weather),
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 15 * 60 * 1000,
+    retry: 1,
   });
 }

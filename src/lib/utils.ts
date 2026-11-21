@@ -91,6 +91,44 @@ export function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
 }
 
+/* ───────── 활동 요일 ───────── */
+
+/** yyyy-MM-dd 의 요일 번호 (0=일 … 6=토) */
+export function weekdayOf(dateKey: string) {
+  return parseISO(dateKey).getDay();
+}
+
+/** 이 활동을 그날 해야 하는지 */
+export function isHabitDay(habit: { weekdays?: number[] | null }, dateKey: string) {
+  const days = habit.weekdays?.length ? habit.weekdays : [0, 1, 2, 3, 4, 5, 6];
+  return days.includes(weekdayOf(dateKey));
+}
+
+/** from~to(포함) 사이에서 그 활동을 해야 했던 날짜 목록 */
+export function habitDaysBetween(habit: { weekdays?: number[] | null }, from: string, to: string) {
+  const out: string[] = [];
+  if (from > to) return out;
+  let d = parseISO(from);
+  const end = parseISO(to);
+  while (d <= end) {
+    const key = format(d, "yyyy-MM-dd");
+    if (isHabitDay(habit, key)) out.push(key);
+    d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+  }
+  return out;
+}
+
+/** "매일" / "평일" / "주말" / "월·수·금" */
+export function weekdaysLabel(days?: number[] | null) {
+  const set = new Set(days?.length ? days : [0, 1, 2, 3, 4, 5, 6]);
+  if (set.size === 7) return "매일";
+  const weekday = [1, 2, 3, 4, 5].every((d) => set.has(d));
+  if (set.size === 5 && weekday) return "평일";
+  if (set.size === 2 && set.has(0) && set.has(6)) return "주말";
+  const label = ["일", "월", "화", "수", "목", "금", "토"];
+  return [1, 2, 3, 4, 5, 6, 0].filter((d) => set.has(d)).map((d) => label[d]).join("·");
+}
+
 /** 그 날짜가 속한 주의 월요일 (yyyy-MM-dd) */
 export function weekStartKey(dateKey: string) {
   return format(startOfWeek(parseISO(dateKey), { weekStartsOn: 1 }), "yyyy-MM-dd");

@@ -24,4 +24,6 @@ export const qk = {
   chinese: ["chinese"] as const,
   /** 중국어 단어장 */
   zhVocab: ["zh-vocab"] as const,
+  /** 고양시 현재 날씨 */
+  weather: ["weather"] as const,
 };

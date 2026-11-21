@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { subDays, parseISO, differenceInCalendarDays } from "date-fns";
+import { subDays, parseISO } from "date-fns";
 import { Flame, CalendarDays, Layers, ArrowRight, FileText } from "lucide-react";
-import { computeStreak, todayKey, formatDateTimeKo } from "@/lib/utils";
+import { computeStreak, todayKey, formatDateTimeKo, habitDaysBetween, weekdaysLabel } from "@/lib/utils";
 import type { EntryWithTags, HabitCheckRow, HabitRow, ReportRow } from "@/lib/types";
 import { useEntries, useHabits, useHabitChecks, useReports, useToday } from "@/lib/query/hooks";
 import { PageHeader, SectionTitle } from "@/components/ui/page-header";
@@ -103,12 +103,18 @@ function Dashboard({
   const topStressors = [...stressorCount.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 5);
   const maxStress = topStressors[0]?.[1].count ?? 1;
 
-  // 지속 활동 체크율 (30일, 시작일 이후만)
+  // 지속 활동 체크율 (30일, 시작일 이후 + 그 활동의 요일만)
   const habitRows = habits.map((h) => {
     const start = h.started_at > from30 ? h.started_at : from30;
-    const days = Math.max(1, differenceInCalendarDays(parseISO(today), parseISO(start)) + 1);
-    const done = checks30.filter((c) => c.habit_id === h.id && c.done && c.entry_date >= start).length;
-    return { name: h.name, value: done / days, figure: `${done}/${days}일`, hint: `${Math.round((done / days) * 100)}%` };
+    const due = new Set(habitDaysBetween(h, start, today));
+    const days = Math.max(1, due.size);
+    const done = checks30.filter((c) => c.habit_id === h.id && c.done && due.has(c.entry_date)).length;
+    return {
+      name: h.name,
+      value: done / days,
+      figure: `${done}/${days}일`,
+      hint: `${weekdaysLabel(h.weekdays)} · ${Math.round((done / days) * 100)}%`,
+    };
   });
 
   const latest = reports[0] ?? null;

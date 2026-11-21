@@ -35,6 +35,8 @@ export interface HabitRow {
   name: string;
   started_at: string;
   active: boolean;
+  /** 해야 하는 요일 (0=일 … 6=토) */
+  weekdays: number[];
   created_at: string;
 }
 
