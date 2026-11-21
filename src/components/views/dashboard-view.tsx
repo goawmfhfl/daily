@@ -17,6 +17,7 @@ import { PageSkeleton, QueryError } from "@/components/ui/query-state";
 import { EmotionFlowChart, type DayPoint } from "@/components/charts/emotion-flow";
 import { MeterList } from "@/components/charts/meter-list";
 import { EmotionInsightCard } from "@/components/dashboard/emotion-insight-card";
+import { FactorCards } from "@/components/dashboard/factor-cards";
 
 const FLOW_DAYS = 14;
 
@@ -91,18 +92,6 @@ function Dashboard({
     });
   }
 
-  // 스트레스 상위 요인 (30일)
-  const stressorCount = new Map<string, { count: number; last: string }>();
-  for (const e of analyzable) {
-    for (const t of e.entry_tags.filter((t) => t.kind === "stressor")) {
-      const key = t.value.trim();
-      const cur = stressorCount.get(key) ?? { count: 0, last: e.entry_date };
-      stressorCount.set(key, { count: cur.count + 1, last: e.entry_date > cur.last ? e.entry_date : cur.last });
-    }
-  }
-  const topStressors = [...stressorCount.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 5);
-  const maxStress = topStressors[0]?.[1].count ?? 1;
-
   // 지속 활동 체크율 (30일, 시작일 이후 + 그 활동의 요일만)
   const habitRows = habits.map((h) => {
     const start = h.started_at > from30 ? h.started_at : from30;
@@ -148,26 +137,12 @@ function Dashboard({
 
           <EmotionInsightCard entries={entries} today={today} />
 
+          {/* 스트레스·평온 상위 요인 (최근 30일, 새 기록이 생기면 자동 재분석) */}
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader title="스트레스 상위 요인" description="최근 30일 · AI가 추출한 원인" />
-              <CardBody className="pt-4">
-                {topStressors.length === 0 ? (
-                  <p className="text-caption text-muted">기록된 스트레스 원인이 없습니다.</p>
-                ) : (
-                  <MeterList
-                    rows={topStressors.map(([name, v]) => ({
-                      name,
-                      value: v.count / maxStress,
-                      figure: `${v.count}회`,
-                      hint: `마지막 ${v.last.slice(5).replace("-", "/")}`,
-                      tone: "warning" as const,
-                    }))}
-                  />
-                )}
-              </CardBody>
-            </Card>
+            <FactorCards today={today} entries={analyzable} />
+          </div>
 
+          <div className="grid gap-6 lg:grid-cols-2">
             <Card>
               <CardHeader
                 title="지속 활동 체크율"

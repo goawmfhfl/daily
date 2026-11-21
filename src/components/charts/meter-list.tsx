@@ -5,11 +5,12 @@ export interface MeterRow {
   value: number; // 0..1
   figure: string;
   hint?: string;
-  tone?: "accent" | "warning" | "danger" | "muted";
+  tone?: "accent" | "warning" | "danger" | "calm" | "muted";
 }
 
 const tones = {
   accent: "var(--accent)",
+  calm: "var(--calm)",
   warning: "var(--warning)",
   danger: "var(--danger)",
   muted: "var(--fg-subtle)",

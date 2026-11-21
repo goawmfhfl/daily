@@ -268,3 +268,40 @@ export type EmotionInsightResponse =
   /** 그 주에 분석할 기록이 없음 */
   | { status: "empty" }
   | { status: "no_ai" };
+
+/* ───────── 최근 30일 스트레스·평온 상위 요인 ───────── */
+
+export interface FactorItem {
+  factor: string;
+  detail: string;
+  /** 이 요인이 나타난 기록 수 */
+  count: number;
+  /** 마지막으로 나타난 날 */
+  last: string;
+  evidence: Evidence[];
+}
+
+export interface FactorInsightContent {
+  stress: FactorItem[];
+  calm: FactorItem[];
+}
+
+export interface FactorInsightRow {
+  id: string;
+  user_id: string;
+  window_from: string;
+  window_to: string;
+  content_json: FactorInsightContent;
+  model: string;
+  entry_count: number;
+  source_sig: string;
+  created_at: string;
+}
+
+/** GET·POST /api/factor-insights 응답 */
+export type FactorInsightResponse =
+  /** stale: 분석 뒤로 최근 30일 기록·태그가 바뀜 */
+  | { status: "ok"; insight: FactorInsightRow; stale: boolean }
+  | { status: "none" }
+  | { status: "empty" }
+  | { status: "no_ai" };

@@ -421,6 +421,7 @@ export function useWipeAccount() {
       qc.removeQueries({ queryKey: ["reports", "detail"] });
       qc.removeQueries({ queryKey: ["brief"] });
       qc.removeQueries({ queryKey: ["emotion-insight"] });
+      qc.removeQueries({ queryKey: ["factor-insight"] });
     },
   });
 }
