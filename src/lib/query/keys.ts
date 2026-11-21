@@ -18,6 +18,8 @@ export const qk = {
   report: (id: string) => ["reports", "detail", id] as const,
   /** 어제의 나: 기기 기준 오늘 날짜별 */
   brief: (today: string) => ["brief", today] as const,
+  /** 주간 감정 요인 분석: 주의 월요일별 */
+  emotionInsight: (weekStart: string) => ["emotion-insight", weekStart] as const,
   /** 중국어 학습: 번역한 문장 전체(난이도별 번역 포함) */
   chinese: ["chinese"] as const,
   /** 중국어 단어장 */

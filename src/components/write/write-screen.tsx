@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { MessageCircle, PenLine, Sparkles, Sunrise } from "lucide-react";
 import type { UserSettings } from "@/lib/constants";
 import { formatDateKo } from "@/lib/utils";
+import { WeatherLine } from "./weather-line";
 import { useCreateEntry, useDailyBrief, useSaveTags, type SaveEntryResponse } from "@/lib/query/hooks";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
@@ -184,9 +185,7 @@ export function WriteScreen({
                 어제의 나
               </button>
             </div>
-            <h1 className="mt-0.5 text-title font-semibold tracking-tight sm:text-display">
-              지금 떠오르는 걸 적어두세요
-            </h1>
+            <WeatherLine className="mt-2" />
           </div>
           <Segmented<"free" | "dialogue">
             value={mode}

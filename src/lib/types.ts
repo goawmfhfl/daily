@@ -229,3 +229,40 @@ export interface ZhVocabRow {
   model: string | null;
   created_at: string;
 }
+
+/* ───────── 주간 감정 요인 분석 ───────── */
+
+export interface EmotionDriver {
+  /** 요인 한 줄 (사람·상황·활동·생각) */
+  factor: string;
+  /** 어떻게 그 감정으로 이어졌는지 한 문장 */
+  detail: string;
+  evidence: Evidence[];
+}
+
+export interface EmotionInsightContent {
+  /** 이번 주 감정 전체를 한두 문장으로 */
+  overview: string;
+  emotions: { emotion: string; summary: string; drivers: EmotionDriver[] }[];
+}
+
+export interface EmotionInsightRow {
+  id: string;
+  user_id: string;
+  week_start: string;
+  content_json: EmotionInsightContent;
+  model: string;
+  entry_count: number;
+  source_sig: string;
+  created_at: string;
+}
+
+/** GET·POST /api/emotion-insights 응답 */
+export type EmotionInsightResponse =
+  /** stale: 분석 뒤로 그 주 기록·태그가 바뀜 */
+  | { status: "ok"; insight: EmotionInsightRow; stale: boolean }
+  /** 아직 분석하지 않음 */
+  | { status: "none" }
+  /** 그 주에 분석할 기록이 없음 */
+  | { status: "empty" }
+  | { status: "no_ai" };

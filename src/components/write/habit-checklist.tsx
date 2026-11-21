@@ -4,7 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { Check, Plus } from "lucide-react";
 import { useHabits, useHabitChecks, useToggleHabitCheck } from "@/lib/query/hooks";
-import { cn } from "@/lib/utils";
+import { cn, isHabitDay, weekdayOf } from "@/lib/utils";
+import { WEEKDAY_LABEL } from "@/lib/constants";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,10 +16,10 @@ export function HabitChecklist({ dateKey }: { dateKey: string }) {
   const checksQuery = useHabitChecks(dateKey);
   const toggleCheck = useToggleHabitCheck(dateKey);
 
-  const habits = React.useMemo(
-    () => (habitsQuery.data ?? []).filter((h) => h.active),
-    [habitsQuery.data],
-  );
+  const active = React.useMemo(() => (habitsQuery.data ?? []).filter((h) => h.active), [habitsQuery.data]);
+  // 오늘 요일에 해당하는 활동만
+  const habits = React.useMemo(() => active.filter((h) => isHabitDay(h, dateKey)), [active, dateKey]);
+  const dayLabel = WEEKDAY_LABEL[weekdayOf(dateKey)];
   const done = React.useMemo(
     () =>
       new Set(
@@ -56,7 +57,13 @@ export function HabitChecklist({ dateKey }: { dateKey: string }) {
     <Card>
       <CardHeader
         title="오늘 이어간 활동"
-        description={habits.length ? `${done.size}/${habits.length} 완료` : "지속하고 싶은 활동을 등록하세요"}
+        description={
+          habits.length
+            ? `${dayLabel}요일 · ${habits.filter((h) => done.has(h.id)).length}/${habits.length} 완료`
+            : active.length
+              ? `${dayLabel}요일`
+              : "지속하고 싶은 활동을 등록하세요"
+        }
         action={
           <Link
             href="/settings#habits"
@@ -68,9 +75,13 @@ export function HabitChecklist({ dateKey }: { dateKey: string }) {
         }
       />
       <CardBody className="pt-4">
-        {habits.length === 0 ? (
+        {active.length === 0 ? (
           <p className="text-caption text-muted">
-            예: 아침 산책, 영어 10분, 코딩 1시간. 설정에서 추가할 수 있습니다.
+            예: 아침 산책, 영어 10분, 코딩 1시간. 설정에서 요일과 함께 추가할 수 있습니다.
+          </p>
+        ) : habits.length === 0 ? (
+          <p className="text-caption text-muted">
+            오늘은 예정된 활동이 없어요. 쉬어 가는 날입니다.
           </p>
         ) : (
           <ul className="space-y-1">

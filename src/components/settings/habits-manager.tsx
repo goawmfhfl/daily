@@ -4,7 +4,9 @@ import * as React from "react";
 import { Plus, Pause, Play, Trash2, Pencil, Check, X } from "lucide-react";
 import { useCreateHabit, useDeleteHabit, useHabits, useUpdateHabit } from "@/lib/query/hooks";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDateKo, todayKey } from "@/lib/utils";
+import { formatDateKo, todayKey, weekdaysLabel } from "@/lib/utils";
+import { ALL_WEEKDAYS } from "@/lib/constants";
+import { WeekdayPicker } from "@/components/ui/weekday-picker";
 import type { HabitRow } from "@/lib/types";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,6 +21,7 @@ export function HabitsManager() {
   const updateHabit = useUpdateHabit();
   const deleteHabit = useDeleteHabit();
   const [name, setName] = React.useState("");
+  const [days, setDays] = React.useState<number[]>(ALL_WEEKDAYS);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const busy = createHabit.isPending || updateHabit.isPending || deleteHabit.isPending;
   const habits = habitsQuery.data ?? [];
@@ -36,7 +39,7 @@ export function HabitsManager() {
     <Card>
       <CardHeader
         title="지속하고 싶은 활동"
-        description="기록 화면에서 매일 체크합니다. 지속력 분석의 핵심 데이터입니다."
+        description="정한 요일에만 기록 화면에 나타납니다. 지속력 분석의 핵심 데이터입니다."
       />
       <CardBody className="space-y-4">
         <form
@@ -44,16 +47,23 @@ export function HabitsManager() {
             e.preventDefault();
             if (!name.trim()) return;
             void run(
-              () => createHabit.mutateAsync(name.trim()).then(() => setName("")),
+              () =>
+                createHabit.mutateAsync({ name: name.trim(), weekdays: days }).then(() => {
+                  setName("");
+                  setDays(ALL_WEEKDAYS);
+                }),
               "활동을 추가했습니다",
             );
           }}
-          className="flex gap-2"
+          className="space-y-2.5"
         >
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 아침 산책, 영어 10분" maxLength={60} />
-          <Button type="submit" variant="secondary" disabled={!name.trim() || busy}>
-            <Plus className="size-4" /> 추가
-          </Button>
+          <div className="flex gap-2">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 아침 산책, 영어 10분" maxLength={60} />
+            <Button type="submit" variant="secondary" disabled={!name.trim() || busy}>
+              <Plus className="size-4" /> 추가
+            </Button>
+          </div>
+          <WeekdayPicker value={days} onChange={setDays} presets />
         </form>
 
         {habitsQuery.isPending ? (
@@ -66,7 +76,7 @@ export function HabitsManager() {
         ) : (
           <ul className="divide-y divide-border rounded-lg border border-border">
             {habits.map((h) => (
-              <li key={h.id} className="flex items-center gap-3 px-4 py-3">
+              <li key={h.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
                 {editingId === h.id ? (
                   <HabitEditRow
                     habit={h}
@@ -84,7 +94,9 @@ export function HabitsManager() {
                   <>
                     <div className="min-w-0 flex-1">
                       <p className={h.active ? "font-medium" : "font-medium text-muted line-through"}>{h.name}</p>
-                      <p className="text-micro text-subtle">{formatDateKo(h.started_at, "yyyy.MM.dd")} 시작</p>
+                      <p className="text-micro text-subtle">
+                        {weekdaysLabel(h.weekdays)} · {formatDateKo(h.started_at, "yyyy.MM.dd")} 시작
+                      </p>
                     </div>
                     {!h.active && <Badge>중단</Badge>}
                     <Button
@@ -123,6 +135,18 @@ export function HabitsManager() {
                     >
                       <Trash2 className="size-4" />
                     </Button>
+                    <WeekdayPicker
+                      size="sm"
+                      className="w-full"
+                      value={h.weekdays?.length ? h.weekdays : ALL_WEEKDAYS}
+                      disabled={!h.active || updateHabit.isPending}
+                      onChange={(weekdays) =>
+                        void run(
+                          () => updateHabit.mutateAsync({ id: h.id, weekdays }),
+                          `${h.name}: ${weekdaysLabel(weekdays)}`,
+                        )
+                      }
+                    />
                   </>
                 )}
               </li>

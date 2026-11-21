@@ -10,6 +10,8 @@ export const DELETE = handler(async () => {
   const steps = [
     supabase.from("reports").delete().eq("user_id", user.id),
     supabase.from("daily_briefs").delete().eq("user_id", user.id),
+    supabase.from("emotion_insights").delete().eq("user_id", user.id),
+    supabase.from("factor_insights").delete().eq("user_id", user.id),
     supabase.from("entries").delete().eq("user_id", user.id),
     supabase.from("habits").delete().eq("user_id", user.id),
     supabase.from("experiences").delete().eq("user_id", user.id),

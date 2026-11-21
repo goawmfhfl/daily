@@ -5,6 +5,7 @@ const Patch = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   started_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   active: z.boolean().optional(),
+  weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).transform((a) => [...new Set(a)].sort()).optional(),
 });
 
 export const PATCH = handler(async (req, { params }) => {

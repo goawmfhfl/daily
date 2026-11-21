@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
-import { format, parseISO, differenceInCalendarDays } from "date-fns";
+import { format, parseISO, differenceInCalendarDays, startOfWeek, addDays } from "date-fns";
 import { ko } from "date-fns/locale";
 
 /**
@@ -89,4 +89,14 @@ export function groupBy<T, K extends string | number>(
 
 export function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
+}
+
+/** 그 날짜가 속한 주의 월요일 (yyyy-MM-dd) */
+export function weekStartKey(dateKey: string) {
+  return format(startOfWeek(parseISO(dateKey), { weekStartsOn: 1 }), "yyyy-MM-dd");
+}
+
+/** yyyy-MM-dd 에 n일 더하기 */
+export function addDaysKey(dateKey: string, n: number) {
+  return format(addDays(parseISO(dateKey), n), "yyyy-MM-dd");
 }

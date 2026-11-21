@@ -21,6 +21,7 @@ import type {
   ReportRow,
   TagSuggestion,
   BriefResponse,
+  EmotionInsightResponse,
   ZhPhraseWithTranslations,
   ZhTranslationRow,
   ZhVocabRow,
@@ -150,9 +151,30 @@ export function useDailyBrief(today: string | null, enabled: boolean) {
   });
 }
 
+/** 주간 감정 요인: 저장된 분석만 조회 (만드는 건 useGenerateEmotionInsight) */
+export function useEmotionInsight(weekStart: string, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.emotionInsight(weekStart),
+    queryFn: () => api<EmotionInsightResponse>(`/api/emotion-insights?week=${weekStart}`),
+    enabled,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useGenerateEmotionInsight() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (weekStart: string) =>
+      api<EmotionInsightResponse>("/api/emotion-insights", { method: "POST", body: { week: weekStart } }),
+    onSuccess: (res, weekStart) => qc.setQueryData(qk.emotionInsight(weekStart), res),
+  });
+}
+
 /** 지난 기록이 바뀌면 브리핑도 다시 확인하게 */
 function staleBrief(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: ["brief"], refetchType: "none" });
+  // 주간 감정 분석도 "새 기록 반영" 여부를 다시 확인
+  void qc.invalidateQueries({ queryKey: ["emotion-insight"], refetchType: "none" });
 }
 
 /* ───────────────────────── 탭 이동 전 미리 받기 ───────────────────────── */
@@ -245,7 +267,11 @@ export function useCreateEntry() {
       mode: "free" | "dialogue";
       entry_date: string;
     }) => api<SaveEntryResponse>("/api/entries", { method: "POST", body }),
-    onSuccess: (res) => upsertEntry(qc, res.entry),
+    onSuccess: (res) => {
+      upsertEntry(qc, res.entry);
+      // 이번 주 감정 분석에 "새 기록 반영" 표시가 뜨도록
+      void qc.invalidateQueries({ queryKey: ["emotion-insight"], refetchType: "none" });
+    },
   });
 }
 
@@ -391,6 +417,7 @@ export function useWipeAccount() {
       qc.removeQueries({ queryKey: ["entries", "semantic"] });
       qc.removeQueries({ queryKey: ["reports", "detail"] });
       qc.removeQueries({ queryKey: ["brief"] });
+      qc.removeQueries({ queryKey: ["emotion-insight"] });
     },
   });
 }

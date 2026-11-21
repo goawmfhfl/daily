@@ -1,3 +1,4 @@
+import { habitDaysBetween, weekdaysLabel } from "@/lib/utils";
 import { zodTextFormat } from "openai/helpers/zod";
 import { openai, MODELS } from "@/lib/openai";
 import type { UserSettings } from "@/lib/constants";
@@ -67,19 +68,14 @@ function habitSummary(
   periodEnd: string,
 ) {
   if (!habits.length) return "등록된 지속 활동 없음.";
-  const dayCount = (a: string, b: string) =>
-    Math.max(
-      1,
-      Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000) + 1,
-    );
+  // 분모는 그 활동을 하기로 한 요일만 센다 (예: 평일 활동이면 주말은 제외)
   return habits
     .map((h) => {
       const start = h.started_at > periodStart ? h.started_at : periodStart;
-      const days = dayCount(start, periodEnd);
-      const done = checks.filter(
-        (c) => c.habit_id === h.id && c.done && c.entry_date >= start,
-      ).length;
-      return `- ${h.name}: ${done}/${days}일 (${Math.round((done / days) * 100)}%)${h.active ? "" : " [중단됨]"}`;
+      const due = new Set(habitDaysBetween(h, start, periodEnd));
+      const days = Math.max(1, due.size);
+      const done = checks.filter((c) => c.habit_id === h.id && c.done && due.has(c.entry_date)).length;
+      return `- ${h.name} (${weekdaysLabel(h.weekdays)}): ${done}/${days}일 (${Math.round((done / days) * 100)}%)${h.active ? "" : " [중단됨]"}`;
     })
     .join("\n");
 }

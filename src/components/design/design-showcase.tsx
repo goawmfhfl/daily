@@ -101,7 +101,7 @@ export function DesignShowcase() {
 
       <Section title="타이포그래피">
         <div className="space-y-3">
-          <p className="text-display font-semibold tracking-tight">Display · 지금 떠오르는 걸 적어두세요</p>
+          <p className="text-display font-semibold tracking-tight">Display · 오늘은 어떤 하루였나요</p>
           <p className="text-title font-semibold">Title · 지금의 나를 한눈에</p>
           <p className="text-heading font-semibold">Heading · 스트레스 상위 요인</p>
           <p className="text-body">Body · 아무렇게나 적어도 감정·사건·상황 태그가 붙어 나중에 분석할 수 있다. Pretendard Variable 기반, 한국어 줄바꿈은 keep-all.</p>

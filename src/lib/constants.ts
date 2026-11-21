@@ -134,3 +134,18 @@ export const ZH_VOCAB_KIND_LABEL: Record<ZhVocabKind, string> = {
 };
 /** 단어장에 직접 입력할 수 있는 최대 길이 */
 export const ZH_VOCAB_MAX_INPUT = 120;
+
+/* ───────── 활동 요일 ───────── */
+
+/** 화면에 보일 순서 (월요일부터). 값은 Date.getDay 번호 0=일 … 6=토 */
+export const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
+export const WEEKDAY_LABEL = ["일", "월", "화", "수", "목", "금", "토"] as const;
+export const ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
+
+/* ───────── 날씨 ───────── */
+
+export const WEATHER_LOCATION = {
+  name: "고양시",
+  latitude: 37.6584,
+  longitude: 126.832,
+} as const;

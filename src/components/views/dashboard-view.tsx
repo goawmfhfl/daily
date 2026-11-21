@@ -5,7 +5,6 @@ import Link from "next/link";
 import { subDays, parseISO, differenceInCalendarDays } from "date-fns";
 import { Flame, CalendarDays, Layers, ArrowRight, FileText } from "lucide-react";
 import { computeStreak, todayKey, formatDateTimeKo } from "@/lib/utils";
-import { EMOTION_META, type Emotion } from "@/lib/constants";
 import type { EntryWithTags, HabitCheckRow, HabitRow, ReportRow } from "@/lib/types";
 import { useEntries, useHabits, useHabitChecks, useReports, useToday } from "@/lib/query/hooks";
 import { PageHeader, SectionTitle } from "@/components/ui/page-header";
@@ -17,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageSkeleton, QueryError } from "@/components/ui/query-state";
 import { EmotionFlowChart, type DayPoint } from "@/components/charts/emotion-flow";
 import { MeterList } from "@/components/charts/meter-list";
+import { EmotionInsightCard } from "@/components/dashboard/emotion-insight-card";
 
 const FLOW_DAYS = 14;
 
@@ -111,12 +111,6 @@ function Dashboard({
     return { name: h.name, value: done / days, figure: `${done}/${days}일`, hint: `${Math.round((done / days) * 100)}%` };
   });
 
-  // 최근 30일 감정 분포
-  const emotionTotals = new Map<string, number>();
-  analyzable.forEach((e) => e.entry_tags.filter((t) => t.kind === "emotion").forEach((t) => emotionTotals.set(t.value, (emotionTotals.get(t.value) ?? 0) + 1)));
-  const emotionSum = [...emotionTotals.values()].reduce((a, b) => a + b, 0);
-  const emotionRows = [...emotionTotals.entries()].sort((a, b) => b[1] - a[1]);
-
   const latest = reports[0] ?? null;
   const empty = total === 0;
 
@@ -139,47 +133,14 @@ function Dashboard({
             <StatTile label="전체 기록" value={total} unit="건" icon={<Layers className="size-4" />} hint="첫 번째 지속력 실험" />
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-5">
-            <Card className="lg:col-span-3">
-              <CardHeader title="최근 감정 흐름" description={`최근 ${FLOW_DAYS}일 · 막대 높이는 감정 강도, 색은 그날의 주 감정`} />
-              <CardBody className="pt-4">
-                <EmotionFlowChart data={flow} />
-              </CardBody>
-            </Card>
+          <Card>
+            <CardHeader title="최근 감정 흐름" description={`최근 ${FLOW_DAYS}일 · 막대 높이는 감정 강도, 색은 그날의 주 감정`} />
+            <CardBody className="pt-4">
+              <EmotionFlowChart data={flow} />
+            </CardBody>
+          </Card>
 
-            <Card className="lg:col-span-2">
-              <CardHeader title="감정 분포" description="최근 30일 감정 태그" />
-              <CardBody className="pt-4">
-                {emotionRows.length === 0 ? (
-                  <p className="text-caption text-muted">아직 감정 태그가 없습니다.</p>
-                ) : (
-                  <>
-                    <div className="flex h-7 w-full gap-0.5 overflow-hidden rounded-md">
-                      {emotionRows.map(([m, n]) => (
-                        <div
-                          key={m}
-                          className="h-full"
-                          style={{ width: `${(n / emotionSum) * 100}%`, background: EMOTION_META[m as Emotion]?.color }}
-                          title={`${m} ${n}`}
-                        />
-                      ))}
-                    </div>
-                    <ul className="mt-3 space-y-1.5">
-                      {emotionRows.map(([m, n]) => (
-                        <li key={m} className="flex items-center justify-between text-caption">
-                          <span className="flex items-center gap-2">
-                            <span className="size-2.5 rounded-full" style={{ background: EMOTION_META[m as Emotion]?.color }} />
-                            {m}
-                          </span>
-                          <span className="tabular text-muted">{n}회 · {Math.round((n / emotionSum) * 100)}%</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </CardBody>
-            </Card>
-          </div>
+          <EmotionInsightCard entries={entries} today={today} />
 
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>

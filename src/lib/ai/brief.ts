@@ -1,3 +1,4 @@
+import { isHabitDay } from "@/lib/utils";
 import { zodTextFormat } from "openai/helpers/zod";
 import { openai, MODELS } from "@/lib/openai";
 import { z } from "zod";
@@ -68,7 +69,13 @@ export function briefStats(entries: EntryWithTags[], habits: HabitRow[], checks:
   const emotionCount = new Map<string, number>();
   for (const t of tags) if (t.kind === "emotion") emotionCount.set(t.value, (emotionCount.get(t.value) ?? 0) + 1);
   // 그날 시작해 있던 활동만 분모로
-  const relevant = habits.filter((h) => h.started_at <= date && (h.active || checks.some((c) => c.habit_id === h.id)));
+  // 그날 요일에 해야 했던 활동만 (중단했어도 그날 체크했으면 포함)
+  const relevant = habits.filter(
+    (h) =>
+      h.started_at <= date &&
+      (isHabitDay(h, date) || checks.some((c) => c.habit_id === h.id && c.entry_date === date && c.done)) &&
+      (h.active || checks.some((c) => c.habit_id === h.id)),
+  );
   const doneIds = new Set(checks.filter((c) => c.done && c.entry_date === date).map((c) => c.habit_id));
   return {
     emotions: [...emotionCount.entries()].sort((a, b) => b[1] - a[1]).map(([v]) => v),

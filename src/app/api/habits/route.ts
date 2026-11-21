@@ -6,6 +6,7 @@ import { fetchHabits } from "@/lib/data";
 const Body = z.object({
   name: z.string().trim().min(1).max(60),
   started_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).transform((a) => [...new Set(a)].sort()).optional(),
 });
 
 export const GET = handler(async () => {
@@ -23,6 +24,7 @@ export const POST = handler(async (req) => {
       user_id: user.id,
       name: parsed.data.name,
       started_at: parsed.data.started_at ?? todayKey(),
+      ...(parsed.data.weekdays ? { weekdays: parsed.data.weekdays } : {}),
     })
     .select("*")
     .single();
