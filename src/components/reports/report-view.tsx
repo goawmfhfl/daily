@@ -16,6 +16,9 @@ import {
   Footprints,
   GitCompare,
   Flag,
+  ChevronDown,
+  Check,
+  X,
 } from "lucide-react";
 import type { ReportRow, ReportSection, Evidence } from "@/lib/types";
 import { PERIODS } from "@/lib/constants";
@@ -152,6 +155,13 @@ export function ReportView({
         </CardBody>
       </Card>
 
+      {(c.next_step.recommended?.length || c.next_step.avoid?.length) ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ActionList tone="do" title="권하는 행동" items={c.next_step.recommended ?? []} />
+          <ActionList tone="avoid" title="피해야 할 행동" items={c.next_step.avoid ?? []} />
+        </div>
+      ) : null}
+
       {c.change_points.length > 0 && (
         <section className="space-y-3">
           <h2 className="flex items-center gap-2 text-caption font-semibold uppercase tracking-wider text-subtle">
@@ -161,7 +171,7 @@ export function ReportView({
             {c.change_points.map((cp, i) => (
               <li key={i} className="relative">
                 <span className="absolute -left-[26px] top-1.5 size-2.5 rounded-full bg-accent ring-4 ring-background" />
-                <p className="text-caption font-semibold text-accent">{formatDateKo(cp.date, "yyyy년 M월 d일")}</p>
+                <DayDate date={cp.date} className="text-caption font-semibold text-accent" />
                 <p className="text-body text-foreground/90">{cp.description}</p>
               </li>
             ))}
@@ -228,24 +238,36 @@ function EvidenceList({ items }: { items: Evidence[] }) {
     return <p className="mt-4 text-micro text-subtle">근거 기록 없음 — 기록에서 확인되지 않은 내용입니다.</p>;
   }
   return (
-    <div className="mt-4 border-t border-border pt-3">
-      <p className="mb-2 flex items-center gap-1 text-micro font-semibold uppercase tracking-wider text-subtle">
+    <details className="group mt-4 border-t border-border pt-3">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md py-1 text-micro font-semibold uppercase tracking-wider text-subtle transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
         <Quote className="size-3" /> 근거 기록
-      </p>
-      <ul className="space-y-1.5">
+        <span className="tabular font-normal normal-case">{items.length}건</span>
+        <ChevronDown className="ml-auto size-3.5 transition-transform group-open:rotate-180" />
+      </summary>
+      <ul className="mt-2 space-y-1.5">
         {items.map((e, i) => (
           <li key={i}>
             <Link
               href={`/entries/${e.entry_id}`}
-              className="group flex gap-3 rounded-md px-2 py-1.5 text-caption transition-colors hover:bg-surface-2"
+              className="group/item flex gap-3 rounded-md px-2 py-1.5 text-caption transition-colors hover:bg-surface-2"
             >
-              <span className="shrink-0 tabular text-subtle group-hover:text-accent">{formatDateKo(e.date, "M.d")}</span>
+              <DayDate date={e.date} className="w-[4.75rem] shrink-0 text-subtle group-hover/item:text-accent" />
               <span className="text-foreground/80">“{e.quote}”</span>
             </Link>
           </li>
         ))}
       </ul>
-    </div>
+    </details>
+  );
+}
+
+/** "수요일 (11/22)" — 요일은 본문 크기, 숫자는 작게 */
+function DayDate({ date, className }: { date: string; className?: string }) {
+  return (
+    <span className={className}>
+      {formatDateKo(date, "EEEE")}
+      <span className="ml-0.5 text-micro tabular opacity-75">({formatDateKo(date, "M/d")})</span>
+    </span>
   );
 }
 
@@ -274,7 +296,7 @@ function QuoteList({
           {items.map((e, i) => (
             <li key={i}>
               <Link href={`/entries/${e.entry_id}`} className="block text-caption text-foreground/85 hover:text-foreground">
-                <span className="mr-2 tabular text-subtle">{formatDateKo(e.date, "M.d")}</span>“{e.quote}”
+                <DayDate date={e.date} className="mr-2 text-subtle" />“{e.quote}”
               </Link>
             </li>
           ))}
@@ -314,5 +336,42 @@ function NamedList({
         </ul>
       )}
     </div>
+  );
+}
+
+function ActionList({
+  tone,
+  title,
+  items,
+}: {
+  tone: "do" | "avoid";
+  title: string;
+  items: { action: string; why: string }[];
+}) {
+  const Icon = tone === "do" ? Check : X;
+  return (
+    <section className="surface-card px-5 py-4">
+      <h3 className={`flex items-center gap-2 text-caption font-semibold ${tone === "do" ? "text-success" : "text-danger"}`}>
+        <span className={`flex size-5 items-center justify-center rounded-full ${tone === "do" ? "bg-success-soft" : "bg-danger-soft"}`}>
+          <Icon className="size-3" strokeWidth={3} />
+        </span>
+        {title}
+      </h3>
+      {items.length === 0 ? (
+        <p className="mt-2 text-caption text-subtle">기록에서 확인되지 않음</p>
+      ) : (
+        <ul className="mt-3 space-y-2.5">
+          {items.map((x, i) => (
+            <li key={i} className="flex gap-2.5">
+              <span className="mt-0.5 w-4 shrink-0 text-caption tabular text-subtle">{i + 1}</span>
+              <div>
+                <p className="text-body font-medium leading-snug">{x.action}</p>
+                <p className="mt-0.5 text-caption text-muted">{x.why}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

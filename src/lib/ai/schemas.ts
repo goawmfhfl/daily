@@ -60,6 +60,8 @@ export const ReportSchema = z.object({
     experiment: z.string(),
     why: z.string(),
     how_to_measure: z.string(),
+    recommended: z.array(z.object({ action: z.string(), why: z.string() })),
+    avoid: z.array(z.object({ action: z.string(), why: z.string() })),
   }),
   change_points: z.array(
     z.object({ date: z.string(), description: z.string() }),

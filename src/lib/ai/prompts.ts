@@ -72,6 +72,11 @@ export function reportSystemPrompt(settings: UserSettings) {
 - change_points 는 감정·스트레스 원인·에너지가 눈에 띄게 바뀐 시점을 날짜(yyyy-MM-dd)와 함께 1~4개 제시한다. 없으면 빈 배열.
 - 이전 리포트가 주어지면 comparison_with_previous 에 달라진 점을 3문장 이내로 쓴다. 없으면 null.
 - next_step 은 이번 데이터가 시사하는, 일주일 안에 해볼 수 있는 아주 작은 실험 하나.
+- next_step.recommended 는 기록에서 실제로 기분·에너지·회복에 도움이 됐던 행동을 바탕으로, 건강한 생활 리듬을 지키기 위해 권하는 행동 3~5개.
+  next_step.avoid 는 기록에서 스트레스·무기력·후회로 이어졌던 행동을 바탕으로 피하면 좋을 행동 3~5개.
+  각 항목의 action 은 바로 실천할 수 있는 구체적인 행동(예: "밤 11시 이후 휴대폰은 침실 밖에 두기", 40자 이내),
+  why 는 그렇게 권하는 이유를 기록에서 확인된 사실로 한 문장(날짜는 "11월 18일"처럼 쓰고 [#번호] 는 쓰지 않음).
+  기록에 근거가 없으면 억지로 채우지 말고 빈 배열로 둔다.
 
 [말투] ${analysisTone(settings.analysis_coldness)} 한국어 존댓말. 각 summary 는 2~4문장, bullets 는 2~4개.
 

@@ -110,6 +110,9 @@ export interface ReportContent {
     experiment: string;
     why: string;
     how_to_measure: string;
+    /** 권하는 행동 / 피해야 할 행동 (이전 리포트에는 없음) */
+    recommended?: { action: string; why: string }[];
+    avoid?: { action: string; why: string }[];
   };
   change_points: { date: string; description: string }[];
   comparison_with_previous: string | null;
