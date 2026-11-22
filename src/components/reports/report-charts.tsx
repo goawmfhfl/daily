@@ -196,9 +196,9 @@ export function TimeOfDayBars({ metrics }: { metrics: ReportMetrics }) {
         const slot = TIME_SLOTS.find((s) => s.key === t.slot)!;
         return (
           <li key={t.slot} className="flex items-center gap-3 text-caption">
-            <span className="w-16 shrink-0 text-muted">
+            <span className="w-[4.5rem] shrink-0 whitespace-nowrap text-muted">
               {slot.label}
-              <span className="ml-1 text-micro text-subtle">{slot.range}</span>
+              <span className="ml-1 text-[10px] text-subtle">{slot.range}</span>
             </span>
             <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
               <span
@@ -206,8 +206,13 @@ export function TimeOfDayBars({ metrics }: { metrics: ReportMetrics }) {
                 style={{ width: `${(t.count / max) * 100}%`, background: scaleBg(STRESS, t.stress ?? 1) }}
               />
             </span>
-            <span className="w-24 shrink-0 text-right tabular text-subtle">
-              {t.count}건{t.count > 0 && t.stress != null ? ` · 스트레스 ${t.stress.toFixed(1)}` : ""}
+            <span className="w-[6.75rem] shrink-0 whitespace-nowrap text-right tabular text-subtle">
+              {t.count}건
+              {t.count > 0 && t.stress != null && (
+                <span className="ml-1 text-micro" title="평균 스트레스">
+                  · 스트레스 {t.stress.toFixed(1)}
+                </span>
+              )}
             </span>
           </li>
         );
