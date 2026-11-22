@@ -13,9 +13,7 @@ import type {
 import { ReportSchema, type ReportOut } from "./schemas";
 import { reportSystemPrompt } from "./prompts";
 
-interface RefMap {
-  [ref: number]: { id: string; date: string };
-}
+type RefMap = ReportRefs;
 
 function tagValues(e: EntryWithTags, kind: string) {
   return e.entry_tags.filter((t) => t.kind === kind).map((t) => t.value);
@@ -135,7 +133,16 @@ export function toReportContent(out: ReportOut, refs: RefMap): ReportContent {
   };
 }
 
-export async function generateReport(input: {
+export interface ReportRefs {
+  [ref: number]: { id: string; date: string };
+}
+
+/**
+ * 리포트 생성을 OpenAI 백그라운드 작업으로 시작한다.
+ * 기록이 많으면 생성이 수 분 걸려 서버 함수 실행 제한(Vercel 300초)을 넘기므로,
+ * 여기서는 작업만 맡기고 바로 돌아온 뒤 pollReport 로 결과를 받는다.
+ */
+export async function startReport(input: {
   entries: EntryWithTags[];
   habits: HabitRow[];
   checks: HabitCheckRow[];
@@ -144,7 +151,7 @@ export async function generateReport(input: {
   periodEnd: string;
   periodLabel: string;
   settings: UserSettings;
-}): Promise<{ content: ReportContent; model: string }> {
+}): Promise<{ responseId: string; refs: ReportRefs; model: string }> {
   const model = MODELS.report;
   const { text, refs } = serializeEntries(input.entries, input.habits, input.checks);
   const prev = previousSummary(input.previous);
@@ -164,8 +171,9 @@ export async function generateReport(input: {
     .filter((l) => l !== "")
     .join("\n");
 
-  const res = await openai().responses.parse({
+  const res = await openai().responses.create({
     model,
+    background: true,
     ...(model.startsWith("gpt-5") || model.startsWith("o")
       ? { reasoning: { effort: "medium" as const } }
       : {}),
@@ -176,7 +184,32 @@ export async function generateReport(input: {
     text: { format: zodTextFormat(ReportSchema, "self_report") },
   });
 
-  const out = res.output_parsed;
-  if (!out) throw new Error("리포트 결과를 해석하지 못했습니다.");
-  return { content: toReportContent(out, refs), model };
+  return { responseId: res.id, refs, model };
+}
+
+export type ReportPoll =
+  | { status: "pending" }
+  | { status: "done"; content: ReportContent }
+  | { status: "failed"; message: string };
+
+/** 백그라운드 리포트 작업의 상태를 확인하고, 끝났으면 결과를 리포트 형태로 바꾼다 */
+export async function pollReport(responseId: string, refs: ReportRefs): Promise<ReportPoll> {
+  const res = await openai().responses.retrieve(responseId);
+  if (res.status === "queued" || res.status === "in_progress") return { status: "pending" };
+  if (res.status !== "completed") {
+    const reason = res.error?.message ?? res.incomplete_details?.reason ?? res.status;
+    return { status: "failed", message: `리포트 생성이 중단되었습니다 (${reason}).` };
+  }
+
+  const text = res.output
+    .flatMap((item) => (item.type === "message" ? item.content : []))
+    .map((c) => (c.type === "output_text" ? c.text : ""))
+    .join("");
+  let out: ReportOut;
+  try {
+    out = ReportSchema.parse(JSON.parse(text));
+  } catch {
+    return { status: "failed", message: "리포트 결과를 해석하지 못했습니다." };
+  }
+  return { status: "done", content: toReportContent(out, refs) };
 }

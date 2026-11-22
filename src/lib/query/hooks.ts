@@ -9,7 +9,8 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
+import type { ReportJob } from "@/lib/report-store";
 import { todayKey } from "@/lib/utils";
 import type { PeriodKey, UserSettings } from "@/lib/constants";
 import type {
@@ -434,11 +435,86 @@ export type GenerateReportResponse =
   | { insufficient: true; message: string; count: number; required: number }
   | { insufficient: false; report: ReportRow };
 
+type StartReportResponse =
+  | { insufficient: true; message: string; count: number; required: number }
+  | { insufficient: false; pending: true; job: ReportJob };
+
+type PollReportResponse = { status: "pending" } | { status: "done"; report: ReportRow };
+
+/* 생성 중인 리포트 작업은 화면을 떠났다 돌아와도 이어서 기다릴 수 있게 브라우저에 남겨 둔다 */
+const PENDING_REPORT_KEY = "daily:pending-report";
+const POLL_INTERVAL_MS = 5000;
+const POLL_TIMEOUT_MS = 20 * 60 * 1000;
+
+export function readPendingReportJob(): ReportJob | null {
+  try {
+    const raw = localStorage.getItem(PENDING_REPORT_KEY);
+    return raw ? (JSON.parse(raw) as ReportJob) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingReportJob(job: ReportJob | null) {
+  try {
+    if (job) localStorage.setItem(PENDING_REPORT_KEY, JSON.stringify(job));
+    else localStorage.removeItem(PENDING_REPORT_KEY);
+  } catch {
+    /* 저장 불가 환경에서는 이어 받기만 포기한다 */
+  }
+}
+
+// 같은 작업을 여러 화면이 동시에 기다려도 저장은 한 번만 일어나도록 진행 중인 대기를 공유한다
+const inflight = new Map<string, Promise<ReportRow>>();
+
+function waitForReport(job: ReportJob): Promise<ReportRow> {
+  const existing = inflight.get(job.response_id);
+  if (existing) return existing;
+  const p = (async () => {
+    const started = Date.now();
+    let networkFailures = 0;
+    while (Date.now() - started < POLL_TIMEOUT_MS) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      try {
+        const res = await api<PollReportResponse>("/api/reports/poll", { method: "POST", body: { job } });
+        networkFailures = 0;
+        if (res.status === "done") {
+          writePendingReportJob(null);
+          return res.report;
+        }
+      } catch (e) {
+        // 생성 실패(502)나 잘못된 요청은 바로 끝내고, 일시적인 네트워크·서버 오류는 몇 번 더 시도한다
+        const terminal = e instanceof ApiError && (e.status < 500 || e.status === 502);
+        if (terminal || ++networkFailures >= 3) {
+          writePendingReportJob(null);
+          throw e;
+        }
+      }
+    }
+    writePendingReportJob(null);
+    throw new Error("리포트 생성이 너무 오래 걸립니다. 잠시 뒤 다시 시도해 주세요.");
+  })().finally(() => inflight.delete(job.response_id));
+  inflight.set(job.response_id, p);
+  return p;
+}
+
 export function useGenerateReport() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { period_key: PeriodKey; today: string }) =>
-      api<GenerateReportResponse>("/api/reports", { method: "POST", body }),
+    mutationFn: async (
+      arg: { period_key: PeriodKey; today: string } | { resume: ReportJob },
+    ): Promise<GenerateReportResponse> => {
+      let job: ReportJob;
+      if ("resume" in arg) {
+        job = arg.resume;
+      } else {
+        const res = await api<StartReportResponse>("/api/reports", { method: "POST", body: arg });
+        if (res.insufficient) return res;
+        job = res.job;
+        writePendingReportJob(job);
+      }
+      return { insufficient: false, report: await waitForReport(job) };
+    },
     onSuccess: (res) => {
       if (res.insufficient) return;
       qc.setQueryData<ReportRow[]>(qk.reports, (list) =>

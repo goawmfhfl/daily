@@ -9,10 +9,10 @@ import {
   fetchHabitChecks,
   fetchReports,
 } from "@/lib/data";
-import { generateReport } from "@/lib/ai/report";
+import { startReport } from "@/lib/ai/report";
 import { hasOpenAI } from "@/lib/openai";
 import { todayKey } from "@/lib/utils";
-import type { ReportContent, ReportRow } from "@/lib/types";
+import type { ReportJob } from "@/lib/report-store";
 
 const Body = z.object({
   period_key: z.enum(["7d", "30d", "all"]),
@@ -26,7 +26,7 @@ export const GET = handler(async () => {
 });
 
 /**
- * POST /api/reports — 사용자가 "생성"을 눌렀을 때만 리포트를 만든다.
+ * POST /api/reports — 사용자가 "생성"을 눌렀을 때만 리포트 생성을 시작한다.
  * 기록이 MIN_ENTRIES_FOR_REPORT 미만이면 모델을 호출하지 않고 "아직 말할 수 없다".
  */
 export const POST = handler(async (req) => {
@@ -69,7 +69,8 @@ export const POST = handler(async (req) => {
     fetchReports(supabase, { periodKey: period.key, limit: 1 }),
   ]);
 
-  const { content, model } = await generateReport({
+  // 생성은 수 분 걸릴 수 있어 백그라운드로 맡기고, 클라이언트가 /api/reports/poll 로 결과를 받는다
+  const { responseId, refs, model } = await startReport({
     entries,
     habits,
     checks,
@@ -80,52 +81,14 @@ export const POST = handler(async (req) => {
     settings,
   });
 
-  const { data: report, error } = await supabase
-    .from("reports")
-    .insert({
-      user_id: user.id,
-      period_key: period.key,
-      period_start: periodStart,
-      period_end: periodEnd,
-      mode: "analyze",
-      content_json: content,
-      model,
-      entry_count: entries.length,
-    })
-    .select("*")
-    .single<ReportRow>();
-  if (error || !report) return fail(error?.message ?? "리포트 저장 실패", 500);
-
-  // 근거 기록 테이블에 평탄화 저장
-  const evidence = collectEvidence(content).map((e) => ({
-    report_id: report.id,
-    user_id: user.id,
-    entry_id: e.entry_id,
-    section: e.section,
-    quote: e.quote,
-  }));
-  if (evidence.length) await supabase.from("report_evidence").insert(evidence);
-
-  return json({ insufficient: false, report });
+  const job: ReportJob = {
+    response_id: responseId,
+    period_key: period.key,
+    period_start: periodStart,
+    period_end: periodEnd,
+    entry_count: entries.length,
+    model,
+    refs,
+  };
+  return json({ insufficient: false, pending: true, job });
 });
-
-function collectEvidence(c: ReportContent) {
-  const out: { section: string; entry_id: string; quote: string }[] = [];
-  const push = (section: string, list: { entry_id: string; quote: string }[]) =>
-    list.forEach((e) => out.push({ section, entry_id: e.entry_id, quote: e.quote }));
-  push("emotion_trend", c.emotion_trend.evidence);
-  push("stress_map", c.stress_map.evidence);
-  push("coping", c.coping.evidence);
-  push("self_view", [
-    ...c.self_view.evidence,
-    ...c.self_view.positive_quotes,
-    ...c.self_view.negative_quotes,
-  ]);
-  push("happiness_conditions", [
-    ...c.happiness_conditions.evidence,
-    ...c.happiness_conditions.happy,
-    ...c.happiness_conditions.unhappy,
-  ]);
-  push("persistence", c.persistence.evidence);
-  return out;
-}

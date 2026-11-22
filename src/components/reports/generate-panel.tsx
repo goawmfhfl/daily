@@ -4,12 +4,14 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { PERIODS, type PeriodKey } from "@/lib/constants";
-import { useGenerateReport } from "@/lib/query/hooks";
+import { useGenerateReport, readPendingReportJob, type GenerateReportResponse } from "@/lib/query/hooks";
 import { todayKey } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
 import { useToast } from "@/components/ui/toast";
+
+const notified = new Set<string>();
 
 export function GeneratePanel({
   counts,
@@ -30,20 +32,47 @@ export function GeneratePanel({
   const count = counts[period] ?? 0;
   const enough = count >= min;
 
-  async function generate() {
-    setNotice(null);
-    try {
-      // 새 리포트는 리포트 캐시에 바로 들어가므로 상세 화면이 추가 요청 없이 열린다
-      const res = await generateReport.mutateAsync({ period_key: period, today: todayKey() });
-      if (res.insufficient) {
-        setNotice(res.message);
-        return;
+  // 화면이 사라진 뒤 끝난 생성은 이동 없이 알림만, 같은 리포트 알림은 한 번만
+  const mounted = React.useRef(true);
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const handle = React.useCallback(
+    async (run: () => Promise<GenerateReportResponse>) => {
+      try {
+        const res = await run();
+        if (res.insufficient) {
+          if (mounted.current) setNotice(res.message);
+          return;
+        }
+        if (!notified.has(res.report.id)) {
+          notified.add(res.report.id);
+          toast.push({ tone: "success", title: "리포트가 생성되었습니다" });
+        }
+        if (mounted.current) router.push(`/reports/${res.report.id}`);
+      } catch (e) {
+        toast.push({ tone: "error", title: "리포트 생성 실패", description: e instanceof Error ? e.message : undefined });
       }
-      toast.push({ tone: "success", title: "리포트가 생성되었습니다" });
-      router.push(`/reports/${res.report.id}`);
-    } catch (e) {
-      toast.push({ tone: "error", title: "리포트 생성 실패", description: e instanceof Error ? e.message : undefined });
-    }
+    },
+    [router, toast],
+  );
+
+  // 생성 도중 화면을 떠났다 돌아오면 남아 있는 작업을 이어서 기다린다
+  const { mutateAsync } = generateReport;
+  React.useEffect(() => {
+    const job = readPendingReportJob();
+    if (!job) return;
+    const t = setTimeout(() => void handle(() => mutateAsync({ resume: job })), 0);
+    return () => clearTimeout(t);
+  }, [handle, mutateAsync]);
+
+  function generate() {
+    setNotice(null);
+    void handle(() => generateReport.mutateAsync({ period_key: period, today: todayKey() }));
   }
 
   return (
@@ -79,6 +108,11 @@ export function GeneratePanel({
           </div>
         </div>
 
+        {busy && (
+          <p className="rounded-md bg-surface-2 px-3 py-2 text-caption text-muted">
+            리포트를 만드는 중입니다. 기록이 많으면 몇 분 걸릴 수 있어요. 다른 화면으로 가도 계속 만들어집니다.
+          </p>
+        )}
         {notice && (
           <p className="rounded-md bg-warning-soft px-3 py-2 text-caption text-warning">{notice}</p>
         )}
