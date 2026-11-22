@@ -56,6 +56,15 @@ export const ReportSchema = z.object({
     dropped: z.array(z.object({ name: z.string(), note: z.string() })),
     counterexamples: z.array(z.string()),
   }),
+  time_patterns: Section.extend({
+    items: z.array(
+      z.object({
+        when: z.string(),
+        pattern: z.string(),
+        tone: z.enum(["good", "bad", "neutral"]),
+      }),
+    ),
+  }),
   next_step: z.object({
     experiment: z.string(),
     why: z.string(),

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PeriodKey } from "@/lib/constants";
 import type { ReportRefs } from "@/lib/ai/report";
+import type { ReportMetrics } from "@/lib/report-metrics";
 import type { ReportContent, ReportRow } from "@/lib/types";
 
 /** 백그라운드로 생성 중인 리포트 작업. 끝나면 이 정보로 리포트를 저장한다 */
@@ -12,6 +13,7 @@ export interface ReportJob {
   entry_count: number;
   model: string;
   refs: ReportRefs;
+  metrics: ReportMetrics;
 }
 
 export async function saveReport(
@@ -28,7 +30,7 @@ export async function saveReport(
       period_start: job.period_start,
       period_end: job.period_end,
       mode: "analyze",
-      content_json: content,
+      content_json: { ...content, metrics: job.metrics },
       model: job.model,
       entry_count: job.entry_count,
     })
@@ -66,5 +68,6 @@ function collectEvidence(c: ReportContent) {
     ...c.happiness_conditions.unhappy,
   ]);
   push("persistence", c.persistence.evidence);
+  if (c.time_patterns) push("time_patterns", c.time_patterns.evidence);
   return out;
 }

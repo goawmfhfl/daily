@@ -13,6 +13,7 @@ import { startReport } from "@/lib/ai/report";
 import { hasOpenAI } from "@/lib/openai";
 import { todayKey } from "@/lib/utils";
 import type { ReportJob } from "@/lib/report-store";
+import { computeReportMetrics } from "@/lib/report-metrics";
 
 const Body = z.object({
   period_key: z.enum(["7d", "30d", "all"]),
@@ -69,6 +70,9 @@ export const POST = handler(async (req) => {
     fetchReports(supabase, { periodKey: period.key, limit: 1 }),
   ]);
 
+  // 흐름·요일·시간대 차트용 지표는 생성 시점의 기록으로 계산해 리포트에 함께 저장한다
+  const metrics = computeReportMetrics(entries, periodStart, periodEnd);
+
   // 생성은 수 분 걸릴 수 있어 백그라운드로 맡기고, 클라이언트가 /api/reports/poll 로 결과를 받는다
   const { responseId, refs, model } = await startReport({
     entries,
@@ -79,6 +83,7 @@ export const POST = handler(async (req) => {
     periodEnd,
     periodLabel: period.label,
     settings,
+    metrics,
   });
 
   const job: ReportJob = {
@@ -89,6 +94,7 @@ export const POST = handler(async (req) => {
     entry_count: entries.length,
     model,
     refs,
+    metrics,
   };
   return json({ insufficient: false, pending: true, job });
 });

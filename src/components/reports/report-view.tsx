@@ -19,7 +19,10 @@ import {
   ChevronDown,
   Check,
   X,
+  Activity,
+  Clock,
 } from "lucide-react";
+import { FlowChart, TimeOfDayBars, WeekdayHeatmap } from "@/components/reports/report-charts";
 import type { ReportRow, ReportSection, Evidence } from "@/lib/types";
 import { PERIODS } from "@/lib/constants";
 import { useDeleteReport } from "@/lib/query/hooks";
@@ -96,6 +99,21 @@ export function ReportView({
         </Card>
       )}
 
+      {c.metrics && (
+        <section className="surface-card px-5 py-5 sm:px-6">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="flex size-7 items-center justify-center rounded-md bg-surface-2 text-muted">
+              <Activity className="size-4" />
+            </span>
+            <h2 className="text-heading font-semibold">{report.period_key === "7d" ? "한 주의 흐름" : "기간의 흐름"}</h2>
+            <span className="hidden text-caption text-subtle sm:inline">
+              · {c.metrics.granularity === "week" ? "주별" : "날짜별"} 스트레스·에너지와 주 감정
+            </span>
+          </div>
+          <FlowChart metrics={c.metrics} />
+        </section>
+      )}
+
       <Section icon={<TrendingUp className="size-4" />} title="감정 변화" question="기간 동안 감정은 어떻게 움직였나" section={c.emotion_trend} />
 
       <Section icon={<Map className="size-4" />} title="스트레스 지도" question="어떤 시기·상황에서 스트레스를 받나" section={c.stress_map}>
@@ -112,6 +130,10 @@ export function ReportView({
           </ol>
         )}
       </Section>
+
+      {(c.time_patterns || c.metrics) && (
+        <TimePatternsSection patterns={c.time_patterns} metrics={c.metrics} />
+      )}
 
       <Section icon={<LifeBuoy className="size-4" />} title="대처 기록" question="스트레스 뒤 무엇이 회복에 도움이 됐나" section={c.coping} />
 
@@ -251,7 +273,7 @@ function EvidenceList({ items }: { items: Evidence[] }) {
               href={`/entries/${e.entry_id}`}
               className="group/item flex gap-3 rounded-md px-2 py-1.5 text-caption transition-colors hover:bg-surface-2"
             >
-              <DayDate date={e.date} className="w-[4.75rem] shrink-0 text-subtle group-hover/item:text-accent" />
+              <DayDate date={e.date} className="w-12 shrink-0 text-subtle group-hover/item:text-accent" />
               <span className="text-foreground/80">“{e.quote}”</span>
             </Link>
           </li>
@@ -261,12 +283,23 @@ function EvidenceList({ items }: { items: Evidence[] }) {
   );
 }
 
-/** "수요일 (11/22)" — 요일은 본문 크기, 숫자는 작게 */
+/**
+ * 요일만 보이고, 날짜(11/22)는 마우스를 올리면 말풍선으로 보인다.
+ * 마우스가 없는 터치 기기에서는 날짜를 아주 작게 옆에 붙인다.
+ */
 function DayDate({ date, className }: { date: string; className?: string }) {
   return (
-    <span className={className}>
-      {formatDateKo(date, "EEEE")}
-      <span className="ml-0.5 text-micro tabular opacity-75">({formatDateKo(date, "M/d")})</span>
+    <span className={`group/date relative inline-flex items-baseline ${className ?? ""}`} aria-label={formatDateKo(date, "M월 d일 EEEE")}>
+      <span aria-hidden>{formatDateKo(date, "EEEE")}</span>
+      <span aria-hidden className="ml-0.5 hidden text-[10px] leading-none tabular opacity-60 pointer-coarse:inline">
+        {formatDateKo(date, "M/d")}
+      </span>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-1.5 py-0.5 text-micro font-medium tabular text-background shadow-md pointer-fine:group-hover/date:block"
+      >
+        {formatDateKo(date, "M/d")}
+      </span>
     </span>
   );
 }
@@ -372,6 +405,65 @@ function ActionList({
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+function TimePatternsSection({
+  patterns,
+  metrics,
+}: {
+  patterns?: NonNullable<ReportRow["content_json"]["time_patterns"]>;
+  metrics?: ReportRow["content_json"]["metrics"];
+}) {
+  const toneStyle = {
+    good: "bg-success-soft text-success",
+    bad: "bg-danger-soft text-danger",
+    neutral: "bg-surface-3 text-muted",
+  } as const;
+  return (
+    <section className="surface-card px-5 py-5 sm:px-6">
+      <div className="flex items-center gap-2">
+        <span className="flex size-7 items-center justify-center rounded-md bg-surface-2 text-muted">
+          <Clock className="size-4" />
+        </span>
+        <h2 className="text-heading font-semibold">요일·시간대 패턴</h2>
+        <span className="hidden text-caption text-subtle sm:inline">· 언제 무엇이 반복되나</span>
+      </div>
+
+      {patterns && (
+        <>
+          <p className="mt-3 text-body leading-relaxed">{patterns.summary}</p>
+          {patterns.items.length > 0 && (
+            <ul className="mt-4 space-y-2">
+              {patterns.items.map((x, i) => (
+                <li key={i} className="flex items-start gap-3 rounded-md bg-surface-2 px-3 py-2.5">
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-micro font-semibold ${toneStyle[x.tone]}`}>
+                    {x.when}
+                  </span>
+                  <span className="text-body text-foreground/90">{x.pattern}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+
+      {metrics && (
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          <div>
+            <p className="mb-2 text-caption font-semibold text-muted">요일별 평균</p>
+            <WeekdayHeatmap metrics={metrics} />
+          </div>
+          <div>
+            <p className="mb-2 text-caption font-semibold text-muted">기록을 쓴 시간대</p>
+            <TimeOfDayBars metrics={metrics} />
+            <p className="mt-2 text-micro text-subtle">막대 길이는 기록 수, 진하기는 그때의 평균 스트레스입니다.</p>
+          </div>
+        </div>
+      )}
+
+      {patterns && <EvidenceList items={patterns.evidence} />}
     </section>
   );
 }

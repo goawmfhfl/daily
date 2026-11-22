@@ -1,4 +1,6 @@
 import { habitDaysBetween, weekdaysLabel } from "@/lib/utils";
+import { parseISO } from "date-fns";
+import { metricsSummary, seoulHour, WEEKDAY_KO, type ReportMetrics } from "@/lib/report-metrics";
 import { zodTextFormat } from "openai/helpers/zod";
 import { openai, MODELS } from "@/lib/openai";
 import type { UserSettings } from "@/lib/constants";
@@ -49,7 +51,7 @@ export function serializeEntries(
     ].join(" | ");
     const done = checksByDate.get(e.entry_date);
     lines.push(
-      `[#${ref}] ${e.entry_date} (${e.mode === "free" ? "메모" : "대화"})`,
+      `[#${ref}] ${e.entry_date} (${WEEKDAY_KO[parseISO(e.entry_date).getDay()]}) ${writtenAt(e.created_at)} 작성 (${e.mode === "free" ? "메모" : "대화"})`,
       meta,
       done?.length ? `지속활동 완료: ${done.join(", ")}` : "",
       e.content.trim(),
@@ -57,6 +59,12 @@ export function serializeEntries(
     );
   });
   return { text: lines.filter((l, i, a) => !(l === "" && a[i - 1] === "")).join("\n"), refs };
+}
+
+/** 한국 시간 HH:mm */
+function writtenAt(iso: string) {
+  const m = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", minute: "2-digit" }).format(new Date(iso));
+  return `${String(seoulHour(iso)).padStart(2, "0")}:${m.padStart(2, "0")}`;
 }
 
 function habitSummary(
@@ -128,6 +136,7 @@ export function toReportContent(out: ReportOut, refs: RefMap): ReportContent {
       counterexamples: out.persistence.counterexamples,
     },
     next_step: out.next_step,
+    time_patterns: { ...sec(out.time_patterns), items: out.time_patterns.items },
     change_points: out.change_points.filter((c) => /^\d{4}-\d{2}-\d{2}$/.test(c.date)),
     comparison_with_previous: out.comparison_with_previous,
   };
@@ -151,6 +160,7 @@ export async function startReport(input: {
   periodEnd: string;
   periodLabel: string;
   settings: UserSettings;
+  metrics: ReportMetrics;
 }): Promise<{ responseId: string; refs: ReportRefs; model: string }> {
   const model = MODELS.report;
   const { text, refs } = serializeEntries(input.entries, input.habits, input.checks);
@@ -162,6 +172,9 @@ export async function startReport(input: {
     "",
     "===== 지속 활동 체크율 (이번 기간) =====",
     habitSummary(input.habits, input.checks, input.periodStart, input.periodEnd),
+    "",
+    "===== 요일·시간대별 지표 (태그 기준) =====",
+    metricsSummary(input.metrics),
     "",
     prev ? `===== 같은 기간의 이전 리포트 =====\n${prev}\n` : "",
     "===== 이번 요청 =====",

@@ -1,3 +1,4 @@
+import type { ReportMetrics } from "@/lib/report-metrics";
 import type { TagKind, PeriodKey, AiMode } from "./constants";
 
 export type EntryMode = "free" | "dialogue";
@@ -114,8 +115,14 @@ export interface ReportContent {
     recommended?: { action: string; why: string }[];
     avoid?: { action: string; why: string }[];
   };
+  /** 요일·시간대 패턴 (이전 리포트에는 없음) */
+  time_patterns?: ReportSection & {
+    items: { when: string; pattern: string; tone: "good" | "bad" | "neutral" }[];
+  };
   change_points: { date: string; description: string }[];
   comparison_with_previous: string | null;
+  /** 생성 시점에 태그로 계산한 흐름·요일·시간대 지표 (이전 리포트에는 없음) */
+  metrics?: ReportMetrics;
 }
 
 /* ───────── 태깅 결과 ───────── */
