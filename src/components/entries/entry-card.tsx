@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { MessageCircle, ShieldAlert } from "lucide-react";
 import type { EntryWithTags } from "@/lib/types";
-import { formatDateKo, relativeDayLabel, truncate } from "@/lib/utils";
+import { clockOf, entryTime, formatDateKo, relativeDayLabel, truncate } from "@/lib/utils";
 import { EMOTION_META, type Emotion } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
 
@@ -38,6 +38,9 @@ export function EntryCard({
             {relativeDayLabel(entry.entry_date, today)}
           </span>
           <span className="text-subtle">{formatDateKo(entry.entry_date, "yyyy.MM.dd")}</span>
+          <span className="tabular text-subtle" title={entry.occurred_at ? "떠오른 시각" : "작성 시각"}>
+            {clockOf(entryTime(entry))}
+          </span>
           {entry.mode === "dialogue" && (
             <MessageCircle className="size-3.5 text-subtle" aria-label="대화형" />
           )}

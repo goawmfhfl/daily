@@ -42,6 +42,16 @@ export function formatDateTimeKo(iso: string) {
   }
 }
 
+/** 기록의 시각: 떠오른 시각을 정했으면 그것, 아니면 작성 시각 */
+export function entryTime(e: { occurred_at?: string | null; created_at: string }) {
+  return e.occurred_at ?? e.created_at;
+}
+
+/** ISO → 기기 기준 HH:mm */
+export function clockOf(iso: string) {
+  return format(new Date(iso), "HH:mm");
+}
+
 export function relativeDayLabel(dateKey: string, today = todayKey()) {
   const diff = differenceInCalendarDays(parseISO(today), parseISO(dateKey));
   if (diff === 0) return "오늘";

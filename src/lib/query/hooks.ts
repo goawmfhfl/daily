@@ -11,7 +11,7 @@ import {
 } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import type { ReportJob } from "@/lib/report-store";
-import { todayKey } from "@/lib/utils";
+import { entryTime, todayKey } from "@/lib/utils";
 import type { PeriodKey, UserSettings } from "@/lib/constants";
 import type {
   EntryRow,
@@ -237,7 +237,7 @@ function sortEntries(list: EntryWithTags[]) {
   return [...list].sort((a, b) =>
     a.entry_date !== b.entry_date
       ? a.entry_date < b.entry_date ? 1 : -1
-      : a.created_at < b.created_at ? 1 : -1,
+      : entryTime(a) < entryTime(b) ? 1 : -1,
   );
 }
 
@@ -283,7 +283,7 @@ export function useCreateEntry() {
 export function useUpdateEntry(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { content: string; entry_date: string }) =>
+    mutationFn: (body: { content: string; entry_date: string; occurred_at?: string | null }) =>
       api<{ entry: EntryRow }>(`/api/entries/${id}`, { method: "PATCH", body }),
     onSuccess: ({ entry }) => patchEntry(qc, id, (e) => ({ ...e, ...entry })),
     // 내용이 바뀌면 의미 검색 결과(임베딩)도 달라지므로 다음 검색 때 다시 받는다
@@ -304,6 +304,16 @@ export function useDeleteEntry() {
       void qc.invalidateQueries({ queryKey: qk.entry(id), refetchType: "none" });
       staleBrief(qc);
     },
+  });
+}
+
+/** 떠오른 시각만 바꾼다 (저장 직후 태그 확인 패널에서) */
+export function useSetEntryTime() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, occurred_at }: { id: string; occurred_at: string | null }) =>
+      api<{ entry: EntryRow }>(`/api/entries/${id}`, { method: "PATCH", body: { occurred_at } }),
+    onSuccess: ({ entry }, { id }) => patchEntry(qc, id, (e) => ({ ...e, ...entry })),
   });
 }
 

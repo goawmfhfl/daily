@@ -14,6 +14,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Chip, EmotionChip } from "@/components/ui/chip";
 import { IntensityPicker } from "@/components/ui/intensity-picker";
 import { Input } from "@/components/ui/input";
+import { OccurredTimePicker } from "./occurred-time";
 
 export interface ConfirmedTag {
   kind: TagKind;
@@ -28,13 +29,19 @@ export interface ConfirmedTag {
  */
 export function TagConfirm({
   suggestion,
+  savedAt,
   onConfirm,
   onSkip,
 }: {
   suggestion: TagSuggestion;
-  onConfirm: (tags: ConfirmedTag[]) => void;
-  onSkip: () => void;
+  /** 저장한 시각 (떠오른 시각의 기본값) */
+  savedAt: string;
+  /** occurredAt: 고른 시각, 저장한 시각 그대로면 null */
+  onConfirm: (tags: ConfirmedTag[], occurredAt: Date | null) => void;
+  onSkip: (occurredAt: Date | null) => void;
 }) {
+  const [base] = React.useState(() => new Date(savedAt));
+  const [occurred, setOccurred] = React.useState<Date | null>(null);
   const [emotions, setEmotions] = React.useState<string[]>(suggestion.emotions);
   const [events, setEvents] = React.useState<string[]>(suggestion.events);
   const [intensity, setIntensity] = React.useState<number>(suggestion.intensity);
@@ -71,7 +78,7 @@ export function TagConfirm({
       ...positive.map((v) => ({ kind: "self_view_positive" as const, value: v, source: "ai" as const })),
       ...negative.map((v) => ({ kind: "self_view_negative" as const, value: v, source: "ai" as const })),
     ];
-    onConfirm(tags);
+    onConfirm(tags, occurred);
   }
 
   return (
@@ -81,6 +88,8 @@ export function TagConfirm({
         description="AI 제안을 한 번에 확인하거나 고치세요"
       />
       <CardBody className="space-y-5">
+        <OccurredTimePicker base={base} value={occurred} onChange={setOccurred} />
+
         <div className="space-y-2">
           <p className="text-caption font-medium text-muted">감정</p>
           <div className="flex flex-wrap gap-1.5">
@@ -146,7 +155,7 @@ export function TagConfirm({
         )}
 
         <div className="flex items-center justify-between gap-2 pt-1">
-          <Button variant="ghost" size="sm" onClick={onSkip} disabled={busy}>
+          <Button variant="ghost" size="sm" onClick={() => onSkip(occurred)} disabled={busy}>
             AI 값 그대로
           </Button>
           <Button onClick={submit} loading={busy}>

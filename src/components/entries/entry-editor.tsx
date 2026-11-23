@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Pencil, Trash2, MessageCircle, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Clock, Pencil, Trash2, MessageCircle, ShieldAlert } from "lucide-react";
 import type { EntryWithTags, EntryTagRow } from "@/lib/types";
 import {
   EMOTIONS,
@@ -13,7 +13,7 @@ import {
   type Emotion,
 } from "@/lib/constants";
 import { useDeleteEntry, useSaveTags, useUpdateEntry } from "@/lib/query/hooks";
-import { formatDateKo, formatDateTimeKo } from "@/lib/utils";
+import { clockOf, entryTime, formatDateKo, formatDateTimeKo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Chip, EmotionChip } from "@/components/ui/chip";
@@ -30,6 +30,7 @@ export function EntryEditor({ entry }: { entry: EntryWithTags }) {
   const [editing, setEditing] = React.useState(false);
   const [content, setContent] = React.useState(entry.content);
   const [date, setDate] = React.useState(entry.entry_date);
+  const [clock, setClock] = React.useState(() => clockOf(entryTime(entry)));
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const updateEntry = useUpdateEntry(entry.id);
   const deleteEntry = useDeleteEntry();
@@ -41,7 +42,12 @@ export function EntryEditor({ entry }: { entry: EntryWithTags }) {
   function saveContent() {
     // 응답으로 받은 기록을 목록·상세 캐시에 바로 반영 (전체 목록을 다시 받지 않는다)
     updateEntry.mutate(
-      { content, entry_date: date },
+      {
+        content,
+        entry_date: date,
+        // 시각을 바꿨을 때만 떠오른 시각으로 저장 (기록한 날짜 기준)
+        ...(clock && clock !== clockOf(entryTime(entry)) ? { occurred_at: new Date(`${date}T${clock}:00`).toISOString() } : {}),
+      },
       {
         onSuccess: () => {
           toast.push({ tone: "success", title: "수정되었습니다" });
@@ -84,13 +90,33 @@ export function EntryEditor({ entry }: { entry: EntryWithTags }) {
       <header>
         <div className="flex flex-wrap items-center gap-2 text-caption text-muted">
           {editing ? (
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 w-auto" />
+            <>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 w-auto" />
+              <Input
+                type="time"
+                value={clock}
+                onChange={(e) => setClock(e.target.value)}
+                aria-label="떠오른 시각"
+                className="h-8 w-auto"
+              />
+            </>
           ) : (
-            <span className="text-body font-semibold text-foreground">
-              {formatDateKo(entry.entry_date, "yyyy년 M월 d일 EEEE")}
-            </span>
+            <>
+              <span className="text-body font-semibold text-foreground">
+                {formatDateKo(entry.entry_date, "yyyy년 M월 d일 EEEE")}
+              </span>
+              {entry.occurred_at ? (
+                <>
+                  <span className="inline-flex items-center gap-1 font-medium text-foreground/85">
+                    <Clock className="size-3.5" /> {clockOf(entry.occurred_at)}에 떠오름
+                  </span>
+                  <span className="text-subtle">· {formatDateTimeKo(entry.created_at)} 작성</span>
+                </>
+              ) : (
+                <span className="text-subtle">· {formatDateTimeKo(entry.created_at)} 작성</span>
+              )}
+            </>
           )}
-          <span className="text-subtle">· {formatDateTimeKo(entry.created_at)} 작성</span>
           {entry.mode === "dialogue" && (
             <Badge><MessageCircle className="size-3" /> 대화형</Badge>
           )}
@@ -110,7 +136,7 @@ export function EntryEditor({ entry }: { entry: EntryWithTags }) {
                 className="min-h-[240px] text-[1.0625rem] leading-[1.75]"
               />
               <div className="flex justify-end gap-2">
-                <Button variant="ghost" onClick={() => { setEditing(false); setContent(entry.content); setDate(entry.entry_date); }}>취소</Button>
+                <Button variant="ghost" onClick={() => { setEditing(false); setContent(entry.content); setDate(entry.entry_date); setClock(clockOf(entryTime(entry))); }}>취소</Button>
                 <Button onClick={saveContent} loading={busy} disabled={!content.trim()}>저장</Button>
               </div>
             </div>

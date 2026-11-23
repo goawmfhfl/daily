@@ -51,7 +51,7 @@ export function serializeEntries(
     ].join(" | ");
     const done = checksByDate.get(e.entry_date);
     lines.push(
-      `[#${ref}] ${e.entry_date} (${WEEKDAY_KO[parseISO(e.entry_date).getDay()]}) ${writtenAt(e.created_at)} 작성 (${e.mode === "free" ? "메모" : "대화"})`,
+      `[#${ref}] ${e.entry_date} (${WEEKDAY_KO[parseISO(e.entry_date).getDay()]}) ${e.occurred_at ? `${writtenAt(e.occurred_at)}에 떠오른 생각을 ${writtenAt(e.created_at)}에 작성` : `${writtenAt(e.created_at)} 작성`} (${e.mode === "free" ? "메모" : "대화"})`,
       meta,
       done?.length ? `지속활동 완료: ${done.join(", ")}` : "",
       e.content.trim(),

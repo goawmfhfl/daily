@@ -6,7 +6,7 @@ import { MessageCircle, PenLine, Sparkles, Sunrise } from "lucide-react";
 import type { UserSettings } from "@/lib/constants";
 import { formatDateKo } from "@/lib/utils";
 import { WeatherLine } from "./weather-line";
-import { useCreateEntry, useDailyBrief, useSaveTags, type SaveEntryResponse } from "@/lib/query/hooks";
+import { useCreateEntry, useDailyBrief, useSaveTags, useSetEntryTime, type SaveEntryResponse } from "@/lib/query/hooks";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
@@ -58,6 +58,7 @@ export function WriteScreen({
   const toast = useToast();
   const createEntry = useCreateEntry();
   const saveTags = useSaveTags();
+  const setTime = useSetEntryTime();
   // 이전에 쓰다 만 초안이 있으면 그대로 이어서 (다른 탭·새로고침 후에도)
   const [initial] = React.useState(() => loadDraft(userId));
   const [mode, setMode] = React.useState<"free" | "dialogue">(initial?.mode ?? settings.default_mode);
@@ -132,8 +133,18 @@ export function WriteScreen({
     }
   }
 
-  async function confirmTags(tags: ConfirmedTag[]) {
+  /** 떠오른 시각을 골랐으면 저장 (실패해도 기록·태그는 그대로) */
+  function saveTime(id: string, occurredAt: Date | null) {
+    if (!occurredAt) return;
+    setTime.mutate(
+      { id, occurred_at: occurredAt.toISOString() },
+      { onError: (e) => toast.push({ tone: "error", title: "시각을 저장하지 못했습니다", description: e.message }) },
+    );
+  }
+
+  async function confirmTags(tags: ConfirmedTag[], occurredAt: Date | null) {
     if (!saved) return;
+    saveTime(saved.entry.id, occurredAt);
     try {
       await saveTags.mutateAsync({ id: saved.entry.id, tags });
       toast.push({ tone: "success", title: "태그가 저장되었습니다" });
@@ -150,7 +161,8 @@ export function WriteScreen({
     }
   }
 
-  function skipTags() {
+  function skipTags(occurredAt: Date | null) {
+    if (saved) saveTime(saved.entry.id, occurredAt);
     setPhase("idle");
     setSaved(null);
   }
@@ -270,8 +282,8 @@ function AfterSave({
 }: {
   saved: SaveResponse | null;
   phase: Phase;
-  onConfirm: (tags: ConfirmedTag[]) => void;
-  onSkip: () => void;
+  onConfirm: (tags: ConfirmedTag[], occurredAt: Date | null) => void;
+  onSkip: (occurredAt: Date | null) => void;
 }) {
   if (phase === "saving") {
     return (
@@ -300,7 +312,13 @@ function AfterSave({
           <p className="text-body leading-relaxed">{saved.suggestion.reply}</p>
         </CardBody>
       </Card>
-      <TagConfirm suggestion={saved.suggestion} onConfirm={onConfirm} onSkip={onSkip} />
+      <TagConfirm
+        key={saved.entry.id}
+        suggestion={saved.suggestion}
+        savedAt={saved.entry.created_at}
+        onConfirm={onConfirm}
+        onSkip={onSkip}
+      />
     </>
   );
 }

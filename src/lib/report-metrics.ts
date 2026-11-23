@@ -73,7 +73,7 @@ function aggregate(list: EntryWithTags[]): Agg & { emotion: string | null } {
   };
 }
 
-/** created_at(UTC) → 한국 시간 시각 */
+/** 기록 시각(떠오른 시각, 없으면 작성 시각) → 한국 시간 시각 */
 function seoulHour(iso: string) {
   const h = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour: "numeric", hourCycle: "h23" }).format(
     new Date(iso),
@@ -119,7 +119,7 @@ export function computeReportMetrics(entries: EntryWithTags[], periodStart: stri
   }));
   const time_of_day = TIME_SLOTS.map(({ key }) => ({
     slot: key,
-    ...stats(entries.filter((e) => slotOf(seoulHour(e.created_at)) === key)),
+    ...stats(entries.filter((e) => slotOf(seoulHour(e.occurred_at ?? e.created_at)) === key)),
   }));
 
   return { granularity, flow, weekday, time_of_day };

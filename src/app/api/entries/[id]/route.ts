@@ -6,6 +6,8 @@ import { fetchEntry } from "@/lib/data";
 const Patch = z.object({
   content: z.string().trim().min(1).max(20000).optional(),
   entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  /** 떠오른 시각. null 이면 작성 시각으로 되돌린다 */
+  occurred_at: z.string().datetime({ offset: true }).nullable().optional(),
 });
 
 export const GET = handler(async (_req, { params }) => {

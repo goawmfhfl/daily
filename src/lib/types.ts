@@ -12,6 +12,8 @@ export interface EntryRow {
   ai_reply: string | null;
   ai_mode: AiMode | null;
   risk_flag: boolean;
+  /** 생각이 떠오른 시각. null 이면 작성 시각(created_at)으로 본다 */
+  occurred_at: string | null;
   created_at: string;
   updated_at: string;
 }
