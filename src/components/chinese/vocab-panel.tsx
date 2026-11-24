@@ -24,6 +24,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { SectionTitle } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Pagination } from "@/components/ui/pagination";
 import { useToast } from "@/components/ui/toast";
 import { VocabCard } from "./vocab-card";
 import { ReviewSummary, buildQueue } from "./review-summary";
@@ -32,6 +33,9 @@ import { vocabStatus, type VocabStatus } from "@/lib/zh-review";
 import { todayKey } from "@/lib/utils";
 
 type Filter = "all" | ZhVocabKind;
+
+/** 단어장 한 쪽에 보여 줄 카드 수 */
+const PAGE_SIZE = 20;
 
 export function VocabPanel({
   items,
@@ -62,6 +66,10 @@ export function VocabPanel({
   const [jump, setJump] = React.useState<{ id: string; at: number } | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const cardRefs = React.useRef(new Map<string, HTMLElement>());
+  const listTopRef = React.useRef<HTMLDivElement>(null);
+  /** 몇 쪽을 보는지 — 거르는 조건이 바뀌면 1쪽으로 돌아간다 */
+  const filterKey = `${filter}|${status ?? ""}|${q.trim().toLowerCase()}`;
+  const [paging, setPaging] = React.useState({ key: filterKey, page: 1 });
 
   const trimmed = text.trim();
   // 진행 중·실패한 요청은 위에 카드로, 최근 것이 위로
@@ -87,6 +95,9 @@ export function VocabPanel({
     setFilter("all");
     setStatus(null);
     setQ("");
+    // 조건을 모두 풀면 전체 목록이 되므로, 그 카드가 들어 있는 쪽으로 넘긴다
+    const index = Math.max(0, items.findIndex((v) => v.id === id));
+    setPaging({ key: "all||", page: Math.floor(index / PAGE_SIZE) + 1 });
     setJump({ id, at: Date.now() });
     requestAnimationFrame(() =>
       cardRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "center" }),
@@ -142,6 +153,19 @@ export function VocabPanel({
       );
     });
   }, [items, filter, q, status, today]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const page = paging.key === filterKey ? Math.min(paging.page, pageCount) : 1;
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  function changePage(next: number) {
+    setPaging({ key: filterKey, page: next });
+    // 아래쪽에서 쪽을 넘기면 새 쪽의 첫 카드부터 보이게 목록 위로 올린다
+    requestAnimationFrame(() => {
+      const top = listTopRef.current;
+      if (top && top.getBoundingClientRect().top < 0) top.scrollIntoView({ block: "start" });
+    });
+  }
 
   function startSession() {
     const queue = buildQueue(items, today);
@@ -252,8 +276,9 @@ export function VocabPanel({
             조건에 맞는 항목이 없습니다.
           </p>
         ) : (
+          <div ref={listTopRef} className="scroll-mt-16 space-y-4 md:scroll-mt-6">
           <ul className="space-y-3">
-            {filtered.map((v) => (
+            {paged.map((v) => (
               <li key={v.id}>
                 <VocabCard
                   ref={(el) => {
@@ -269,6 +294,15 @@ export function VocabPanel({
               </li>
             ))}
           </ul>
+          {pageCount > 1 && (
+            <div className="space-y-1.5 pt-2">
+              <Pagination page={page} pageCount={pageCount} onChange={changePage} />
+              <p className="text-center text-micro text-subtle tabular">
+                {filtered.length}개 중 {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)}
+              </p>
+            </div>
+          )}
+          </div>
         )}
       </section>
     </div>
