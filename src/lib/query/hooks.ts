@@ -106,6 +106,38 @@ export function useHabits() {
   return useQuery({ queryKey: qk.habits, queryFn: fetchers.habits });
 }
 
+/** 활동별 어제까지 연속 일수. 오늘 체크분은 화면에서 더한다 */
+export function useHabitStreaks(today: string | null) {
+  return useQuery({
+    queryKey: qk.habitStreaks(today ?? ""),
+    queryFn: () =>
+      api<{ streaks: Record<string, number> }>(`/api/habits/streaks?today=${today}`).then((r) => r.streaks),
+    enabled: !!today,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** 드래그로 바꾼 순서: 화면 먼저, 실패하면 되돌림 */
+export function useReorderHabits() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => api("/api/habits/order", { method: "PUT", body: { ids } }),
+    onMutate: (ids) => {
+      const prev = qc.getQueryData<HabitRow[]>(qk.habits);
+      const rank = new Map(ids.map((id, i) => [id, i]));
+      qc.setQueryData<HabitRow[]>(qk.habits, (list) =>
+        list
+          ?.map((h) => (rank.has(h.id) ? { ...h, sort_order: rank.get(h.id)! } : h))
+          .sort((a, b) => a.sort_order - b.sort_order),
+      );
+      return { prev };
+    },
+    onError: (_e, _ids, ctx) => {
+      if (ctx?.prev) qc.setQueryData(qk.habits, ctx.prev);
+    },
+  });
+}
+
 export function useHabitChecks(today: string | null) {
   const w = today ? checksWindow(today) : null;
   return useQuery({
@@ -367,7 +399,7 @@ export function useToggleHabitCheck(today: string | null) {
 export function useCreateHabit() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name: string; weekdays?: number[] }) =>
+    mutationFn: (body: { name: string; weekdays?: number[]; emoji?: string | null }) =>
       api<{ habit: HabitRow }>("/api/habits", { method: "POST", body }),
     onSuccess: ({ habit }) =>
       qc.setQueryData<HabitRow[]>(qk.habits, (list) => (list ? [...list, habit] : list)),
@@ -386,12 +418,17 @@ export function useUpdateHabit() {
       name?: string;
       started_at?: string;
       weekdays?: number[];
+      emoji?: string | null;
     }) =>
       api<{ habit: HabitRow }>(`/api/habits/${id}`, { method: "PATCH", body }),
-    onSuccess: ({ habit }) =>
+    onSuccess: ({ habit }, body) => {
       qc.setQueryData<HabitRow[]>(qk.habits, (list) =>
         list?.map((h) => (h.id === habit.id ? habit : h)),
-      ),
+      );
+      // 요일·시작일이 바뀌면 연속 일수도 달라진다
+      if (body.weekdays || body.started_at || body.active !== undefined)
+        void qc.invalidateQueries({ queryKey: ["habits", "streaks"] });
+    },
   });
 }
 

@@ -6,6 +6,8 @@ const Patch = z.object({
   started_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   active: z.boolean().optional(),
   weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).transform((a) => [...new Set(a)].sort()).optional(),
+  /** null 이면 이모지 없앰 */
+  emoji: z.string().trim().min(1).max(16).nullable().optional(),
 });
 
 export const PATCH = handler(async (req, { params }) => {

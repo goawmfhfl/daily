@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateKo, todayKey, weekdaysLabel } from "@/lib/utils";
 import { ALL_WEEKDAYS } from "@/lib/constants";
 import { WeekdayPicker } from "@/components/ui/weekday-picker";
+import { EmojiPicker } from "@/components/ui/emoji-picker";
 import type { HabitRow } from "@/lib/types";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -92,6 +93,11 @@ export function HabitsManager() {
                   />
                 ) : (
                   <>
+                    <EmojiPicker
+                      value={h.emoji}
+                      onChange={(emoji) => void run(() => updateHabit.mutateAsync({ id: h.id, emoji }), emoji ? "이모지를 바꿨습니다" : "이모지를 없앴습니다")}
+                      className="-mr-1"
+                    />
                     <div className="min-w-0 flex-1">
                       <p className={h.active ? "font-medium" : "font-medium text-muted line-through"}>{h.name}</p>
                       <p className="text-micro text-subtle">

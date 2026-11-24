@@ -40,6 +40,9 @@ export interface HabitRow {
   active: boolean;
   /** 해야 하는 요일 (0=일 … 6=토) */
   weekdays: number[];
+  /** 보여 주는 순서 (작을수록 위) */
+  sort_order: number;
+  emoji: string | null;
   created_at: string;
 }
 

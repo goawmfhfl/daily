@@ -73,7 +73,7 @@ export async function fetchHabits(
   supabase: SupabaseClient,
   activeOnly = false,
 ): Promise<HabitRow[]> {
-  let q = supabase.from("habits").select("*").order("created_at");
+  let q = supabase.from("habits").select("*").order("sort_order").order("created_at");
   if (activeOnly) q = q.eq("active", true);
   const { data, error } = await q;
   if (error) throw error;
