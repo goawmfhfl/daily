@@ -8,7 +8,7 @@ const Body = z.object({
   set_id: z.string().uuid(),
   mode: z.enum(["first", "retry"]),
   /** 빈칸 번호 → 고른 보기. 다시 풀기는 틀렸던 빈칸만 */
-  selected: z.record(z.string().regex(/^\d+$/), z.number().int().min(0).max(3)),
+  selected: z.record(z.string().regex(/^\d+$/), z.number().int().min(0).max(5)),
   duration_sec: z.number().int().min(0).max(24 * 3600).optional(),
   today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });

@@ -834,7 +834,7 @@ export function useHskSummary(level: number) {
 export function useTakeHskSet() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { level: number; topic: string | null }) =>
+    mutationFn: (body: { level: number; part: number; topic: string | null }) =>
       api<{ set: HskSetRow | null }>("/api/hsk/next", { method: "POST", body }).then((r) => r.set),
     onSuccess: (_s, { level }) => void qc.invalidateQueries({ queryKey: qk.hsk(level) }),
   });
@@ -843,7 +843,14 @@ export function useTakeHskSet() {
 /** 세트 생성 요청을 앱 전체에서 한 묶음으로 보기 위한 키 (풀 채우기가 겹치지 않게) */
 export const HSK_GEN_KEY = ["hsk", "generate"] as const;
 
-type HskGenVars = { level: number; topic?: string | null; focus_words?: string[]; serve: boolean };
+type HskGenVars = {
+  level: number;
+  part: number;
+  topic?: string | null;
+  focus_words?: string[];
+  similar?: boolean;
+  serve: boolean;
+};
 
 /** 세트 생성 (1~3분). 화면을 떠나도 끝까지 진행되고, 끝나면 요약을 새로 받는다 */
 export function useGenerateHsk() {
@@ -856,11 +863,14 @@ export function useGenerateHsk() {
   });
 }
 
-/** 지금 풀을 채우는 중인 요청 수 (바로 풀 세트 제외) */
-export function useHskRefilling() {
+/** 지금 풀을 채우는 중인 요청 수 (바로 풀 세트 제외), 부분별 */
+export function useHskRefilling(part: number) {
   return useMutationState({
     filters: { mutationKey: HSK_GEN_KEY, status: "pending" },
-    select: (m) => (m.state.variables as HskGenVars | undefined)?.serve === false,
+    select: (m) => {
+      const v = m.state.variables as HskGenVars | undefined;
+      return v?.serve === false && v.part === part;
+    },
   }).filter(Boolean).length;
 }
 

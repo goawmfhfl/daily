@@ -3,7 +3,7 @@
 import * as React from "react";
 import { BookOpenCheck, ChevronRight, NotebookPen, RefreshCw, Shuffle, Sparkles, Target } from "lucide-react";
 import type { HskAttemptWithSet, HskGraded, HskSetRow, HskWrongWithSet } from "@/lib/types";
-import { HSK_LEVELS, HSK_OPEN_LEVELS, HSK_POOL_TARGET, HSK_TOPICS } from "@/lib/hsk";
+import { HSK_LEVELS, HSK_OPEN_LEVELS, HSK_PART_LIST, HSK_PARTS, HSK_POOL_TARGET, HSK_TOPICS, OPTION_LETTERS, type HskPart } from "@/lib/hsk";
 import { cn, relativeDayLabel, todayKey } from "@/lib/utils";
 import { dueLabel } from "@/lib/zh-review";
 import {
@@ -21,6 +21,7 @@ import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionTitle } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Segmented } from "@/components/ui/segmented";
 import { StatTile } from "@/components/ui/stat-tile";
 import { useToast } from "@/components/ui/toast";
 import { HskResult, HskSolve } from "./hsk-solve";
@@ -42,6 +43,7 @@ type View =
     };
 
 const LEVEL = 6;
+const PART_KEY = "daily:hsk-part";
 
 /** 중국어 페이지 · 독해 탭 */
 export function HskPanel({ aiAvailable }: { aiAvailable: boolean }) {
@@ -51,9 +53,25 @@ export function HskPanel({ aiAvailable }: { aiAvailable: boolean }) {
   const generate = useGenerateHsk();
   // 풀 채우기는 따로: 바로 풀 세트를 만드는 요청과 섞이지 않게
   const refill = useGenerateHsk();
-  const refilling = useHskRefilling();
+  const [part, setPart] = React.useState<HskPart>(1);
+  const refilling = useHskRefilling(part);
   const [view, setView] = React.useState<View>({ kind: "home" });
   const [topic, setTopic] = React.useState<string | null>(null);
+
+  // 마지막으로 고른 부분 (기기별)
+  React.useEffect(() => {
+    try {
+      const v = Number(localStorage.getItem(PART_KEY));
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (v in HSK_PARTS) setPart(v as HskPart);
+    } catch {}
+  }, []);
+  function changePart(p: HskPart) {
+    setPart(p);
+    try {
+      localStorage.setItem(PART_KEY, String(p));
+    } catch {}
+  }
   const topRef = React.useRef<HTMLDivElement>(null);
   /** 지금 기다리는 생성 요청. 돌아가기를 누르면 바뀌어서, 늦게 끝난 결과가 화면을 덮지 않는다 */
   const waiting = React.useRef(0);
@@ -64,24 +82,24 @@ export function HskPanel({ aiAvailable }: { aiAvailable: boolean }) {
   };
 
   /** 풀이 모자라면 백그라운드로 하나씩 채운다 (주제는 랜덤) */
-  const pool = summary.data?.pool;
+  const pool = summary.data ? (summary.data.pools[part] ?? 0) : undefined;
   React.useEffect(() => {
     // 한 번 실패하면 이 화면에서는 다시 시도하지 않는다 (같은 오류로 계속 부르지 않게)
     if (!aiAvailable || pool === undefined || refill.isError) return;
     if (pool + refilling < HSK_POOL_TARGET && refilling === 0) {
-      refill.mutate({ level: LEVEL, serve: false });
+      refill.mutate({ level: LEVEL, part, serve: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiAvailable, pool, refilling, refill.isError]);
+  }, [aiAvailable, pool, part, refilling, refill.isError]);
 
   async function start() {
     let ticket = -1;
     try {
-      const set = await take.mutateAsync({ level: LEVEL, topic });
+      const set = await take.mutateAsync({ level: LEVEL, part, topic });
       if (set) return go({ kind: "solve", set, mode: "first" });
       go({ kind: "generating", similar: false });
       ticket = ++waiting.current;
-      const fresh = await generate.mutateAsync({ level: LEVEL, topic, serve: true });
+      const fresh = await generate.mutateAsync({ level: LEVEL, part, topic, serve: true });
       if (ticket !== waiting.current) return void returnHskToPool(fresh.id).then(() => summary.refetch());
       go({ kind: "solve", set: fresh, mode: "first" });
     } catch (e) {
@@ -91,11 +109,18 @@ export function HskPanel({ aiAvailable }: { aiAvailable: boolean }) {
     }
   }
 
+  /** 비슷한 문제: 1부분은 틀린 단어를 정답으로, 2부분은 같은 주제·형식으로 새로 */
   async function similar(set: HskSetRow, words: string[]) {
     go({ kind: "generating", similar: true });
     const ticket = ++waiting.current;
     try {
-      const fresh = await generate.mutateAsync({ level: set.level, topic: set.topic, focus_words: words, serve: true });
+      const fresh = await generate.mutateAsync({
+        level: set.level,
+        part: set.part,
+        topic: set.topic,
+        ...(set.part === 1 ? { focus_words: words } : { similar: true }),
+        serve: true,
+      });
       if (ticket !== waiting.current) return void returnHskToPool(fresh.id).then(() => summary.refetch());
       go({ kind: "solve", set: fresh, mode: "first" });
     } catch (e) {
@@ -147,7 +172,14 @@ export function HskPanel({ aiAvailable }: { aiAvailable: boolean }) {
           onRetry={(w) =>
             go({ kind: "solve", set: w.set, mode: "retry", retryNos: w.items.map((i) => i.blank_no) })
           }
-          onSimilar={(w) => similar(w.set, w.items.map((i) => w.set.blanks.find((b) => b.no === i.blank_no)!.options[i.answer]))}
+          part={part}
+          onPart={changePart}
+          onSimilar={(w) =>
+            similar(
+              w.set,
+              w.set.part === 1 ? w.items.map((i) => w.set.blanks.find((b) => b.no === i.blank_no)!.options[i.answer]) : [],
+            )
+          }
           onOpenRecent={(a) =>
             go({
               kind: "result",
@@ -191,6 +223,8 @@ function groupWrong(rows: HskWrongWithSet[]): WrongGroup[] {
 }
 
 function Home({
+  part,
+  onPart,
   loading,
   data,
   topic,
@@ -203,6 +237,8 @@ function Home({
   onSimilar,
   onOpenRecent,
 }: {
+  part: HskPart;
+  onPart: (p: HskPart) => void;
   loading: boolean;
   data: ReturnType<typeof useHskSummary>["data"];
   topic: string | null;
@@ -231,12 +267,19 @@ function Home({
               <BookOpenCheck className="size-5" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-heading font-semibold">HSK 독해 · 빈칸 채우기</p>
+              <p className="text-heading font-semibold">HSK 독해 · {HSK_PARTS[part].label}</p>
               <p className="text-caption text-muted">
-                지문 하나에 빈칸 5개, 보기 4개씩. 제출하면 바로 채점하고 보기마다 왜 맞고 틀린지 알려 줘요.
+                {HSK_PARTS[part].desc}. 제출하면 바로 채점하고 보기마다 왜 맞고 틀린지 알려 줘요.
               </p>
             </div>
           </div>
+
+          <Segmented<string>
+            value={String(part)}
+            onChange={(v) => onPart(Number(v) as HskPart)}
+            fullWidth
+            options={HSK_PART_LIST.map((p) => ({ value: String(p), label: `${HSK_PARTS[p].short} · ${HSK_PARTS[p].label}` }))}
+          />
 
           <div className="space-y-2">
             <p className="text-caption font-medium text-muted">급수</p>
@@ -272,13 +315,13 @@ function Home({
                 "준비된 세트 확인 중…"
               ) : (
                 <>
-                  준비된 세트 <b className="tabular text-foreground">{data?.pool ?? 0}</b>개
+                  준비된 세트 <b className="tabular text-foreground">{data?.pools[part] ?? 0}</b>개
                   {refilling && <span className="ml-1.5 text-accent">· 하나 더 만드는 중</span>}
                   {topic && <span className="ml-1.5">· {topic} 주제는 없으면 새로 만들어요</span>}
                 </>
               )}
             </p>
-            <Button onClick={onStart} loading={starting} disabled={!aiAvailable && !data?.pool} size="lg">
+            <Button onClick={onStart} loading={starting} disabled={!aiAvailable && !data?.pools[part]} size="lg">
               <Sparkles className="size-4" /> 문제 풀기
             </Button>
           </div>
@@ -340,7 +383,8 @@ function Home({
                   <div className="min-w-0 flex-1">
                     <p lang="zh-CN" className="truncate text-body font-medium">{a.hsk_sets.title}</p>
                     <p className="text-micro text-subtle">
-                      {a.hsk_sets.topic} · {relativeDayLabel(todayKey(new Date(a.created_at)), today)}
+                      {HSK_PARTS[a.hsk_sets.part as HskPart]?.short} · {a.hsk_sets.topic} ·{" "}
+                      {relativeDayLabel(todayKey(new Date(a.created_at)), today)}
                     </p>
                   </div>
                   <ChevronRight className="size-4 text-subtle" />
@@ -371,6 +415,7 @@ function WrongCard({
   return (
     <li className={cn("surface-card px-4 py-3.5", due && "border-accent/40")}>
       <div className="flex flex-wrap items-center gap-2">
+        <Badge>{HSK_PARTS[g.set.part as HskPart]?.short ?? `${g.set.part}부분`}</Badge>
         <p lang="zh-CN" className="min-w-0 flex-1 truncate text-body font-semibold">{g.set.title}</p>
         <Badge tone={due ? "accent" : "neutral"}>
           {due ? "오늘 복습" : g.due ? dueLabel(g.due, today) : "복습 예정"}
@@ -379,19 +424,31 @@ function WrongCard({
       <div className="mt-2 flex flex-wrap gap-1.5">
         {g.items.map((w) => {
           const b = g.set.blanks.find((x) => x.no === w.blank_no)!;
+          // 2부분은 보기 문장이 길어 글자 대신 A~F 와 정답 문장 앞부분
+          const choice = (i: number) =>
+            g.set.part === 2 ? OPTION_LETTERS[i] : b.options[i];
           return (
-            <span key={w.id} className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-caption">
+            <span key={w.id} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-caption">
               <span className="font-bold tabular text-subtle">{w.blank_no}</span>
-              <span lang="zh-CN" className="text-danger line-through decoration-danger/60">{b.options[w.selected]}</span>
+              <span lang="zh-CN" className="text-danger line-through decoration-danger/60">{choice(w.selected)}</span>
               <span className="text-subtle">→</span>
-              <span lang="zh-CN" className="font-semibold text-success">{b.options[w.answer]}</span>
-              {w.stage > 0 && <span className="text-micro text-subtle">· {w.stage}/3</span>}
+              <span lang="zh-CN" className="font-semibold text-success">{choice(w.answer)}</span>
+              {g.set.part === 2 && g.set.choices && (
+                <span lang="zh-CN" className="min-w-0 truncate text-muted">{g.set.choices[w.answer].text}</span>
+              )}
+              {w.stage > 0 && <span className="shrink-0 text-micro text-subtle">· {w.stage}/3</span>}
             </span>
           );
         })}
       </div>
       <div className="mt-3 flex flex-wrap justify-end gap-1.5">
-        <Button variant="ghost" size="sm" onClick={onSimilar} disabled={!aiAvailable} title="틀린 단어를 정답으로 쓰는 새 세트">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onSimilar}
+          disabled={!aiAvailable}
+          title={g.set.part === 1 ? "틀린 단어를 정답으로 쓰는 새 세트" : "같은 주제·형식의 새 세트"}
+        >
           <RefreshCw className="size-3.5" /> 비슷한 문제
         </Button>
         <Button variant={due ? "accent" : "secondary"} size="sm" onClick={onRetry}>

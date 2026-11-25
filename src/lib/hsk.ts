@@ -2,8 +2,23 @@ import { addDaysKey } from "@/lib/utils";
 
 /** 급수별 출제 기준. 지금은 6급만 연다 */
 export const HSK_LEVEL_SPEC = {
-  6: { label: "6급", passage: [350, 500] as const, blanks: 5 },
+  6: {
+    label: "6급",
+    /** 1부분: 단어 빈칸 */
+    passage: [350, 500] as const,
+    blanks: 5,
+    /** 2부분: 문장 빈칸 (빈칸 문장을 뺀 지문 길이), 보기는 빈칸 + 1 */
+    passage2: [220, 360] as const,
+  },
 } as const;
+
+/** 독해 부분 (HSK 3.0 기준 번호) */
+export const HSK_PARTS = {
+  1: { label: "빈칸 채우기", short: "1부분", desc: "지문 속 빈칸에 알맞은 단어를 보기 4개 중에서", unit: "단어" },
+  2: { label: "문장 고르기", short: "2부분", desc: "빈칸 5개에 알맞은 문장을 보기 6개(A~F) 중에서, 1개는 남아요", unit: "문장" },
+} as const;
+export type HskPart = keyof typeof HSK_PARTS;
+export const HSK_PART_LIST = [1, 2] as const;
 export type HskLevel = keyof typeof HSK_LEVEL_SPEC;
 export const HSK_LEVELS = [1, 2, 3, 4, 5, 6] as const;
 export const HSK_OPEN_LEVELS: readonly number[] = [6];
@@ -11,12 +26,12 @@ export const HSK_OPEN_LEVELS: readonly number[] = [6];
 export const HSK_TOPICS = ["일상", "직장", "과학", "문화", "역사", "사회", "건강", "환경", "경제", "인물"] as const;
 export type HskTopic = (typeof HSK_TOPICS)[number];
 
-export const HSK_KIND_LABEL = { collocation: "호응", idiom: "성어", connective: "접속·부사" } as const;
+export const HSK_KIND_LABEL = { collocation: "호응", idiom: "성어", connective: "접속·부사", sentence: "문장" } as const;
 
 /** 풀에 이만큼은 미리 만들어 둔다 */
 export const HSK_POOL_TARGET = 2;
 
-export const OPTION_LETTERS = ["A", "B", "C", "D"] as const;
+export const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 
 /** 지문을 글과 빈칸으로 나눈다: "…{{1}}…" → ["…", 1, "…"] */
 export function splitPassage(passage: string): Array<string | number> {

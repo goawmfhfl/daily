@@ -12,7 +12,7 @@ import {
   NotebookPen,
   X,
 } from "lucide-react";
-import type { HskBlank, HskGraded, HskSetRow } from "@/lib/types";
+import type { HskBlank, HskChoice, HskGraded, HskSetRow } from "@/lib/types";
 import { HSK_KIND_LABEL, OPTION_LETTERS, sentenceWithBlank, splitPassage } from "@/lib/hsk";
 import { cn } from "@/lib/utils";
 import { useAddZhVocab, useReportHsk, useSubmitHsk, useZhVocab, useZhVocabJobs } from "@/lib/query/hooks";
@@ -64,19 +64,26 @@ export function HskSolve({
   }, [startedAt]);
 
   const isTarget = (no: number) => targets.some((b) => b.no === no);
+  /** 2부분: 빈칸들이 보기 6개(A~F)를 함께 쓴다 */
+  const isSentence = set.part === 2;
+  const choices = set.choices ?? [];
+  const optionText = (b: HskBlank, i: number) => (isSentence ? (choices[i]?.text ?? "") : b.options[i]);
+  const keys = isSentence ? "abcdef" : "abcd";
   const answered = targets.filter((b) => picked[b.no] !== undefined).length;
   const ready = answered === targets.length;
 
   const choose = React.useCallback(
     (no: number, opt: number) => {
       const next = { ...picked, [no]: opt };
+      // 2부분은 한 보기를 한 번만: 다른 빈칸에 쓰였으면 거기서 뺀다
+      if (isSentence) for (const k of Object.keys(next)) if (Number(k) !== no && next[Number(k)] === opt) delete next[Number(k)];
       setPicked(next);
       // 다음 안 푼 빈칸으로
       const after =
         targets.find((b) => b.no > no && next[b.no] === undefined) ?? targets.find((b) => next[b.no] === undefined);
       if (after) setActive(after.no);
     },
-    [picked, targets],
+    [picked, targets, isSentence],
   );
 
   React.useEffect(() => {
@@ -85,7 +92,7 @@ export function HskSolve({
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       const k = e.key.toLowerCase();
-      const idx = "abcd".indexOf(k) >= 0 ? "abcd".indexOf(k) : "1234".indexOf(k);
+      const idx = keys.indexOf(k) >= 0 ? keys.indexOf(k) : "123456".slice(0, keys.length).indexOf(k);
       if (idx >= 0 && isTarget(active)) {
         e.preventDefault();
         choose(active, idx);
@@ -94,7 +101,7 @@ export function HskSolve({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, choose, targets]);
+  }, [active, choose, targets, keys]);
 
   function focusBlank(no: number) {
     if (!isTarget(no)) return;
@@ -114,7 +121,11 @@ export function HskSolve({
   }
 
   const fill = (b: HskBlank) =>
-    !isTarget(b.no) ? { word: b.options[b.answer], tone: "given" as const } : picked[b.no] !== undefined ? { word: b.options[picked[b.no]], tone: "picked" as const } : null;
+    !isTarget(b.no)
+      ? { idx: b.answer, tone: "given" as const }
+      : picked[b.no] !== undefined
+        ? { idx: picked[b.no], tone: "picked" as const }
+        : null;
 
   return (
     <div className="space-y-5 pb-24">
@@ -138,7 +149,9 @@ export function HskSolve({
               return (
                 <BlankChip
                   no={no}
-                  word={f?.word}
+                  word={f ? optionText(b, f.idx) : undefined}
+                  letter={isSentence && f ? OPTION_LETTERS[f.idx] : undefined}
+                  wide={isSentence}
                   tone={f?.tone === "given" ? "given" : active === no ? "active" : f ? "picked" : "empty"}
                   onClick={() => focusBlank(no)}
                 />
@@ -150,6 +163,16 @@ export function HskSolve({
       </Card>
       </SelectToVocab>
 
+      {isSentence ? (
+        <SentenceBoard
+          choices={choices}
+          active={active}
+          picked={picked}
+          targets={targets.map((b) => b.no)}
+          given={set.blanks.filter((b) => !isTarget(b.no)).map((b) => ({ no: b.no, idx: b.answer }))}
+          onChoose={(i) => isTarget(active) && choose(active, i)}
+        />
+      ) : (
       <ol className="space-y-3">
         {targets.map((b) => (
           <li
@@ -201,13 +224,16 @@ export function HskSolve({
           </li>
         ))}
       </ol>
+      )}
 
       {/* 제출: 화면 아래에 붙어 있다 */}
       <div className="sticky bottom-20 z-20 md:bottom-6">
         <div className="mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-border bg-surface/95 p-2 pl-4 shadow-lg backdrop-blur">
           <span className="flex-1 text-caption text-muted">
             {ready ? "다 골랐어요" : `${answered}/${targets.length} 골랐어요`}
-            <span className="ml-2 hidden text-micro text-subtle sm:inline">A~D 키로도 고를 수 있어요</span>
+            <span className="ml-2 hidden text-micro text-subtle sm:inline">
+              {isSentence ? "A~F" : "A~D"} 키로도 고를 수 있어요
+            </span>
           </span>
           <Button onClick={send} disabled={!ready} loading={submit.isPending}>
             제출 <ArrowRight className="size-4" />
@@ -244,6 +270,12 @@ export function HskResult({
   const correct = graded.filter((g) => g.correct).length;
   const gradedNos = new Set(graded.map((g) => g.no));
   const perfect = correct === graded.length;
+  const isSentence = set.part === 2;
+  const choices = set.choices ?? [];
+  const text = (b: HskBlank, i: number) => (isSentence ? (choices[i]?.text ?? "") : b.options[i]);
+  const letter = (i: number) => (isSentence ? OPTION_LETTERS[i] : undefined);
+  /** 2부분: 어느 빈칸에도 쓰이지 않는 보기 */
+  const leftover = isSentence ? choices.findIndex((_, i) => !set.blanks.some((b) => b.answer === i)) : -1;
 
   return (
     <SelectToVocab className="space-y-5">
@@ -287,13 +319,16 @@ export function HskResult({
             render={(no) => {
               const b = set.blanks.find((x) => x.no === no)!;
               const g = graded.find((x) => x.no === no);
-              if (!g) return <BlankChip no={no} word={b.options[b.answer]} tone="given" />;
-              return g.correct ? (
-                <BlankChip no={no} word={b.options[b.answer]} tone="right" />
-              ) : (
-                <span className="inline-flex items-baseline gap-1">
-                  <BlankChip no={no} word={b.options[g.selected]} tone="wrong" />
-                  <span lang="zh-CN" className="font-semibold text-success">{b.options[b.answer]}</span>
+              if (!g) return <BlankChip no={no} word={text(b, b.answer)} letter={letter(b.answer)} wide={isSentence} tone="given" />;
+              if (g.correct) return <BlankChip no={no} word={text(b, b.answer)} letter={letter(b.answer)} wide={isSentence} tone="right" />;
+              // 2부분은 문장이 길어 내 답은 기호만, 정답은 문장으로
+              return (
+                <span className="inline">
+                  <BlankChip no={no} word={isSentence ? OPTION_LETTERS[g.selected] : text(b, g.selected)} tone="wrong" />
+                  <span lang="zh-CN" className="font-semibold text-success">
+                    {isSentence && <span className="mr-1 text-[0.75rem] font-bold">{OPTION_LETTERS[b.answer]}</span>}
+                    {text(b, b.answer)}
+                  </span>
                 </span>
               );
             }}
@@ -317,9 +352,23 @@ export function HskResult({
 
       {/* 문항별 해설 */}
       <ol className="space-y-3">
-        {set.blanks.filter((b) => gradedNos.has(b.no)).map((b) => (
-          <BlankReview key={b.no} set={set} blank={b} graded={graded.find((g) => g.no === b.no)!} selected={selected[String(b.no)]} />
-        ))}
+        {set.blanks.filter((b) => gradedNos.has(b.no)).map((b) =>
+          isSentence ? (
+            <SentenceReview key={b.no} set={set} blank={b} graded={graded.find((g) => g.no === b.no)!} />
+          ) : (
+            <BlankReview key={b.no} set={set} blank={b} graded={graded.find((g) => g.no === b.no)!} selected={selected[String(b.no)]} />
+          ),
+        )}
+        {leftover >= 0 && (
+          <li className="surface-card border-dashed px-4 py-3.5">
+            <div className="flex items-center gap-2">
+              <Badge>남는 보기</Badge>
+              <span className="text-micro font-bold text-subtle">{OPTION_LETTERS[leftover]}</span>
+            </div>
+            <p lang="zh-CN" data-zh-context className="mt-2 text-[1.0625rem] font-medium leading-relaxed">{choices[leftover].text}</p>
+            <p data-zh-context className="mt-1 text-caption leading-relaxed text-muted">{choices[leftover].note}</p>
+          </li>
+        )}
       </ol>
 
       <div className="flex justify-center gap-2 pt-2">
@@ -439,6 +488,111 @@ function AddWord({ word, context }: { word: string; context: string }) {
   );
 }
 
+/* ───────── 2부분 · 문장 고르기 ───────── */
+
+/** 보기 6개(A~F)를 한 판에. 고르면 지금 빈칸에 들어가고, 이미 쓴 보기는 몇 번에 썼는지 보인다 */
+function SentenceBoard({
+  choices,
+  active,
+  picked,
+  targets,
+  given,
+  onChoose,
+}: {
+  choices: HskChoice[];
+  active: number;
+  picked: Record<number, number>;
+  targets: number[];
+  /** 다시 풀기에서 정답으로 채워 둔 빈칸 */
+  given: Array<{ no: number; idx: number }>;
+  onChoose: (i: number) => void;
+}) {
+  return (
+    <Card>
+      <CardBody className="space-y-3">
+        <p className="text-caption text-muted">
+          <span className="mr-1 inline-flex size-5 items-center justify-center rounded-full bg-accent text-micro font-bold text-accent-foreground tabular">
+            {active}
+          </span>
+          번 빈칸에 들어갈 문장을 고르세요 · 1개는 남아요
+        </p>
+        <ul className="space-y-1.5">
+          {choices.map((c, i) => {
+            const usedBy = targets.find((no) => picked[no] === i);
+            const fixed = given.find((g) => g.idx === i);
+            const on = usedBy === active;
+            return (
+              <li key={i}>
+                <button
+                  type="button"
+                  onClick={() => onChoose(i)}
+                  disabled={!!fixed}
+                  aria-pressed={on}
+                  className={cn(
+                    "flex w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors",
+                    on
+                      ? "border-transparent bg-primary text-primary-foreground"
+                      : usedBy !== undefined || fixed
+                        ? "border-border bg-surface-2/60 text-muted"
+                        : "border-border bg-surface hover:border-border-strong hover:bg-surface-2",
+                    fixed && "opacity-50",
+                  )}
+                >
+                  <span className={cn("mt-0.5 w-4 shrink-0 text-caption font-bold", on ? "opacity-80" : "text-subtle")}>
+                    {OPTION_LETTERS[i]}
+                  </span>
+                  <span lang="zh-CN" className="flex-1 text-[1.0625rem] leading-relaxed">{c.text}</span>
+                  {(usedBy !== undefined || fixed) && !on && (
+                    <span className="mt-1 shrink-0 rounded-full bg-surface px-1.5 text-micro font-semibold tabular text-subtle">
+                      {usedBy ?? fixed!.no}번
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </CardBody>
+    </Card>
+  );
+}
+
+function SentenceReview({ set, blank: b, graded: g }: { set: HskSetRow; blank: HskBlank; graded: HskGraded }) {
+  const choices = set.choices ?? [];
+  const row = (i: number, tag: React.ReactNode, tone: "right" | "wrong") => (
+    <div className={cn("px-4 py-3", tone === "right" ? "bg-success-soft/40" : "bg-danger-soft/40")}>
+      <div className="flex items-center gap-1.5">
+        <span className="text-micro font-bold text-subtle">{OPTION_LETTERS[i]}</span>
+        {tag}
+      </div>
+      <p lang="zh-CN" data-zh-context className="mt-1 text-[1.0625rem] font-medium leading-relaxed">{choices[i]?.text}</p>
+      <p data-zh-context className="mt-1 text-caption leading-relaxed text-muted">{choices[i]?.note}</p>
+    </div>
+  );
+  return (
+    <li className={cn("surface-card overflow-hidden", !g.correct && "border-danger/30")}>
+      <div className="flex items-center gap-2 px-4 py-3">
+        <span
+          className={cn(
+            "flex size-6 items-center justify-center rounded-full text-micro font-bold tabular",
+            g.correct ? "bg-success-soft text-success" : "bg-danger-soft text-danger",
+          )}
+        >
+          {b.no}
+        </span>
+        <span className={cn("ml-auto inline-flex items-center gap-1 text-caption font-semibold", g.correct ? "text-success" : "text-danger")}>
+          {g.correct ? <Check className="size-4" /> : <X className="size-4" />}
+          {g.correct ? "정답" : "오답"}
+        </span>
+      </div>
+      <div className="divide-y divide-border border-t border-border">
+        {row(b.answer, <Badge tone="success">정답</Badge>, "right")}
+        {!g.correct && row(g.selected, <Badge tone="danger">내 선택</Badge>, "wrong")}
+      </div>
+    </li>
+  );
+}
+
 /* ───────── 공통 ───────── */
 
 function SetHeader({ set, right, badge }: { set: HskSetRow; right?: React.ReactNode; badge?: React.ReactNode }) {
@@ -471,11 +625,17 @@ function Passage({ set, render }: { set: HskSetRow; render: (no: number) => Reac
 function BlankChip({
   no,
   word,
+  letter,
+  wide,
   tone,
   onClick,
 }: {
   no: number;
   word?: string;
+  /** 2부분: 고른 보기 기호 */
+  letter?: string;
+  /** 2부분: 문장이 들어가는 넓은 빈칸 (줄바꿈 허용) */
+  wide?: boolean;
   tone: "empty" | "active" | "picked" | "given" | "right" | "wrong";
   onClick?: () => void;
 }) {
@@ -484,7 +644,8 @@ function BlankChip({
     <Tag
       {...(onClick ? { type: "button" as const, onClick } : {})}
       className={cn(
-        "mx-0.5 inline-flex items-baseline gap-1 rounded-md border-b-2 px-1.5 align-baseline transition-colors",
+        "mx-0.5 rounded-md border-b-2 px-1.5 align-baseline transition-colors",
+        wide && word ? "inline box-decoration-clone py-0.5 text-left" : "inline-flex items-baseline gap-1",
         tone === "empty" && "border-border-strong bg-surface-2 text-subtle",
         tone === "active" && "border-accent bg-accent-soft text-accent",
         tone === "picked" && "border-foreground/60 bg-surface-2 text-foreground",
@@ -493,8 +654,11 @@ function BlankChip({
         tone === "wrong" && "border-danger bg-danger-soft text-danger line-through decoration-2",
       )}
     >
-      <span className="text-[0.7rem] font-bold not-italic tabular opacity-70">{no}</span>
-      <span className="font-semibold">{word ?? "　　　"}</span>
+      <span className="mr-1 text-[0.7rem] font-bold not-italic tabular opacity-70">{no}</span>
+      {letter && <span className="mr-1 text-[0.75rem] font-bold">{letter}</span>}
+      <span className={cn(wide && word ? "font-medium" : "font-semibold")}>
+        {word ?? (wide ? "\u3000\u3000\u3000\u3000\u3000\u3000" : "\u3000\u3000\u3000")}
+      </span>
     </Tag>
   );
 }

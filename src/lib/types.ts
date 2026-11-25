@@ -338,8 +338,15 @@ export type FactorInsightResponse =
 
 /* ───────── HSK 독해 ───────── */
 
-/** 빈칸 유형: 실사 호응 / 성어 / 접속어·부사(논리) */
-export type HskBlankKind = "collocation" | "idiom" | "connective";
+/** 빈칸 유형: 실사 호응 / 성어 / 접속어·부사(논리) / 문장(2부분) */
+export type HskBlankKind = "collocation" | "idiom" | "connective" | "sentence";
+
+/** 2부분 공용 보기 (A~F) */
+export interface HskChoice {
+  text: string;
+  /** 어느 빈칸의 어떤 단서와 이어지는지, 남는 보기면 왜 어디에도 안 맞는지 (한국어) */
+  note: string;
+}
 
 export interface HskBlank {
   no: number;
@@ -364,6 +371,8 @@ export interface HskSetRow {
   /** {{1}} … {{n}} 으로 빈칸을 표시한 지문 */
   passage: string;
   blanks: HskBlank[];
+  /** 2부분: 빈칸들이 함께 쓰는 보기 6개. 1부분은 null */
+  choices: HskChoice[] | null;
   translation_ko: string;
   status: "active" | "reported";
   origin: "pool" | "similar";
@@ -403,8 +412,8 @@ export type HskWrongWithSet = HskWrongRow & { hsk_sets: HskSetRow };
 export type HskAttemptWithSet = HskAttemptRow & { hsk_sets: HskSetRow };
 
 export interface HskSummary {
-  /** 아직 안 꺼낸 세트 수 */
-  pool: number;
+  /** 부분별로 아직 안 꺼낸 세트 수 */
+  pools: Record<string, number>;
   stats: { sets: number; correct: number; total: number };
   wrong: HskWrongWithSet[];
   recent: HskAttemptWithSet[];

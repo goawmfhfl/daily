@@ -10,12 +10,7 @@ export const GET = handler(async (req) => {
   const { supabase } = await requireUser();
 
   const [pool, firsts, wrong, recent] = await Promise.all([
-    supabase
-      .from("hsk_sets")
-      .select("id", { count: "exact", head: true })
-      .eq("level", level)
-      .eq("status", "active")
-      .is("served_at", null),
+    supabase.from("hsk_sets").select("part").eq("level", level).eq("status", "active").is("served_at", null),
     supabase.from("hsk_attempts").select("correct, total").eq("mode", "first"),
     supabase
       .from("hsk_wrong")
@@ -36,7 +31,10 @@ export const GET = handler(async (req) => {
 
   const rows = firsts.data ?? [];
   return json<HskSummary>({
-    pool: pool.count ?? 0,
+    pools: (pool.data ?? []).reduce<Record<string, number>>((acc, r) => {
+      acc[r.part] = (acc[r.part] ?? 0) + 1;
+      return acc;
+    }, {}),
     stats: {
       sets: rows.length,
       correct: rows.reduce((a, r) => a + r.correct, 0),

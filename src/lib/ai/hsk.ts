@@ -1,8 +1,9 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { openai, MODELS } from "@/lib/openai";
-import { HSK_LEVEL_SPEC, HSK_TOPICS, type HskLevel } from "@/lib/hsk";
-import type { HskBlank } from "@/lib/types";
+import { HSK_LEVEL_SPEC, HSK_TOPICS, type HskLevel, type HskPart } from "@/lib/hsk";
+import type { HskBlank, HskChoice } from "@/lib/types";
+import { buildSentenceSet } from "./hsk-sentence";
 
 /* ───────── 출제 ───────── */
 
@@ -89,6 +90,8 @@ export interface BuiltSet {
   passage: string;
   translation_ko: string;
   blanks: HskBlank[];
+  /** 2부분 공용 보기. 1부분은 null */
+  choices: HskChoice[] | null;
   verify: { attempts: number; result: VerifyResult["blanks"] };
   model: string;
 }
@@ -127,7 +130,7 @@ function shuffleBlank(b: Generated["blanks"][number]): HskBlank {
   };
 }
 
-const effort = (model: string, e: "minimal" | "low" | "medium") =>
+export const effort = (model: string, e: "minimal" | "low" | "medium") =>
   model.startsWith("gpt-5") || model.startsWith("o") ? { reasoning: { effort: e } } : {};
 
 async function generateOnce(level: HskLevel, topic: string, focusWords: string[], avoidTitles: string[]) {
@@ -262,7 +265,7 @@ async function repairBlanks(level: HskLevel, passage: string, blanks: HskBlank[]
 }
 
 /** 생성 한 건에 쓸 수 있는 시간 (서버 제한 300초 안에서 여유를 둔다) */
-const TIME_BUDGET_MS = 230_000;
+export const TIME_BUDGET_MS = 230_000;
 
 /**
  * 세트 하나를 만든다: 출제 → 형식 검사 → 보기 섞기 → 블라인드 검수.
@@ -270,6 +273,17 @@ const TIME_BUDGET_MS = 230_000;
  * 그래도 안 되거나 형식이 틀리면 새로 출제한다. 시간 예산을 넘기면 멈춘다.
  */
 export async function buildHskSet(opts: {
+  level: HskLevel;
+  part: HskPart;
+  topic?: string | null;
+  focusWords?: string[];
+  avoidTitles?: string[];
+}): Promise<BuiltSet> {
+  return opts.part === 2 ? buildSentenceSet(opts) : buildWordSet(opts);
+}
+
+/** 1부분: 단어 빈칸 */
+async function buildWordSet(opts: {
   level: HskLevel;
   topic?: string | null;
   focusWords?: string[];
@@ -328,6 +342,7 @@ export async function buildHskSet(opts: {
       passage: g.passage.trim(),
       translation_ko: g.translation_ko.trim(),
       blanks,
+      choices: null,
       verify: { attempts: calls, result: result.sort((a, b) => a.no - b.no) },
       model,
     };
