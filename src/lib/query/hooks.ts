@@ -25,6 +25,10 @@ import type {
   EmotionInsightResponse,
   ZhPhraseWithTranslations,
   ZhPair,
+  HskAttemptRow,
+  HskGraded,
+  HskSetRow,
+  HskSummary,
   ZhTranslationRow,
   ZhVocabRow,
 } from "@/lib/types";
@@ -814,6 +818,81 @@ export function useReviewZhVocab() {
     onError: (_e, { id }, ctx) => {
       if (ctx?.before) patch(id, () => ctx.before!);
     },
+  });
+}
+
+/* ───────────────────────── HSK 독해 ───────────────────────── */
+
+export function useHskSummary(level: number) {
+  return useQuery({
+    queryKey: qk.hsk(level),
+    queryFn: () => api<HskSummary>(`/api/hsk?level=${level}`),
+  });
+}
+
+/** 풀에서 하나 꺼내기. 없으면 null */
+export function useTakeHskSet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { level: number; topic: string | null }) =>
+      api<{ set: HskSetRow | null }>("/api/hsk/next", { method: "POST", body }).then((r) => r.set),
+    onSuccess: (_s, { level }) => void qc.invalidateQueries({ queryKey: qk.hsk(level) }),
+  });
+}
+
+/** 세트 생성 요청을 앱 전체에서 한 묶음으로 보기 위한 키 (풀 채우기가 겹치지 않게) */
+export const HSK_GEN_KEY = ["hsk", "generate"] as const;
+
+type HskGenVars = { level: number; topic?: string | null; focus_words?: string[]; serve: boolean };
+
+/** 세트 생성 (1~3분). 화면을 떠나도 끝까지 진행되고, 끝나면 요약을 새로 받는다 */
+export function useGenerateHsk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: HSK_GEN_KEY,
+    mutationFn: (body: HskGenVars) =>
+      api<{ set: HskSetRow }>("/api/hsk/generate", { method: "POST", body }).then((r) => r.set),
+    onSettled: (_s, _e, { level }) => void qc.invalidateQueries({ queryKey: qk.hsk(level) }),
+  });
+}
+
+/** 지금 풀을 채우는 중인 요청 수 (바로 풀 세트 제외) */
+export function useHskRefilling() {
+  return useMutationState({
+    filters: { mutationKey: HSK_GEN_KEY, status: "pending" },
+    select: (m) => (m.state.variables as HskGenVars | undefined)?.serve === false,
+  }).filter(Boolean).length;
+}
+
+export function useSubmitHsk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      set_id: string;
+      mode: "first" | "retry";
+      selected: Record<string, number>;
+      duration_sec?: number;
+      level: number;
+    }) =>
+      api<{ attempt: HskAttemptRow; graded: HskGraded[] }>("/api/hsk/attempts", {
+        method: "POST",
+        body: { ...body, today: todayKey() },
+      }),
+    onSuccess: (_r, { level }) => void qc.invalidateQueries({ queryKey: qk.hsk(level) }),
+  });
+}
+
+/** 기다리다 돌아간 세트를 풀로 돌려놓기 */
+export async function returnHskToPool(id: string) {
+  await api(`/api/hsk/sets/${id}`, { method: "PATCH", body: { return_to_pool: true } });
+}
+
+export function useReportHsk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string; level: number }) =>
+      api(`/api/hsk/sets/${id}`, { method: "PATCH", body: { status: "reported" } }),
+    onSuccess: (_r, { level }) => void qc.invalidateQueries({ queryKey: qk.hsk(level) }),
   });
 }
 

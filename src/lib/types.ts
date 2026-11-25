@@ -335,3 +335,84 @@ export type FactorInsightResponse =
   | { status: "none" }
   | { status: "empty" }
   | { status: "no_ai" };
+
+/* ───────── HSK 독해 ───────── */
+
+/** 빈칸 유형: 실사 호응 / 성어 / 접속어·부사(논리) */
+export type HskBlankKind = "collocation" | "idiom" | "connective";
+
+export interface HskBlank {
+  no: number;
+  kind: HskBlankKind;
+  /** 보기 4개 */
+  options: string[];
+  /** 정답 보기 번호 (0~3) */
+  answer: number;
+  /** 왜 정답인지 (한국어) */
+  explanation: string;
+  /** 보기별 뜻과 맞고 틀린 이유 (한국어, options 와 같은 순서) */
+  option_notes: string[];
+}
+
+export interface HskSetRow {
+  id: string;
+  user_id: string;
+  level: number;
+  part: number;
+  topic: string;
+  title: string;
+  /** {{1}} … {{n}} 으로 빈칸을 표시한 지문 */
+  passage: string;
+  blanks: HskBlank[];
+  translation_ko: string;
+  status: "active" | "reported";
+  origin: "pool" | "similar";
+  focus_words: string[];
+  model: string | null;
+  served_at: string | null;
+  created_at: string;
+}
+
+export interface HskAttemptRow {
+  id: string;
+  set_id: string;
+  mode: "first" | "retry";
+  /** 빈칸 번호(문자열) → 고른 보기 번호 */
+  selected: Record<string, number>;
+  correct: number;
+  total: number;
+  duration_sec: number | null;
+  created_at: string;
+}
+
+export interface HskWrongRow {
+  id: string;
+  set_id: string;
+  blank_no: number;
+  selected: number;
+  answer: number;
+  /** 0~3, 3번 연속 맞히면 resolved */
+  stage: number;
+  due_on: string | null;
+  review_count: number;
+  resolved_at: string | null;
+  created_at: string;
+}
+
+export type HskWrongWithSet = HskWrongRow & { hsk_sets: HskSetRow };
+export type HskAttemptWithSet = HskAttemptRow & { hsk_sets: HskSetRow };
+
+export interface HskSummary {
+  /** 아직 안 꺼낸 세트 수 */
+  pool: number;
+  stats: { sets: number; correct: number; total: number };
+  wrong: HskWrongWithSet[];
+  recent: HskAttemptWithSet[];
+}
+
+export interface HskGraded {
+  no: number;
+  selected: number;
+  answer: number;
+  correct: boolean;
+}

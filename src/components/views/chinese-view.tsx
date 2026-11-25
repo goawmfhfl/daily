@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlignLeft, BookOpen, EyeOff, Languages, ListOrdered, Search, Sparkles } from "lucide-react";
+import { AlignLeft, BookOpen, BookOpenCheck, EyeOff, Languages, ListOrdered, Search, Sparkles } from "lucide-react";
 import { ZH_LEVELS, ZH_LEVEL_META, ZH_MAX_INPUT, type ZhLevel } from "@/lib/constants";
 import { useMe, useTranslateZh, useZhPhrases, useZhVocab } from "@/lib/query/hooks";
 import { PageHeader, SectionTitle } from "@/components/ui/page-header";
@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/toast";
 import { PhraseCard } from "@/components/chinese/phrase-card";
 import { VocabPanel } from "@/components/chinese/vocab-panel";
 import { HandwritingPad } from "@/components/chinese/handwriting-pad";
+import { HskPanel } from "@/components/hsk/hsk-panel";
 import type { ZhView } from "@/components/chinese/zh-study";
 import type { ZhPhraseWithTranslations, ZhVocabRow } from "@/lib/types";
 
@@ -25,7 +26,7 @@ const TAB_KEY = "daily:zh-tab";
 const VIEW_KEY = "daily:zh-view";
 const HIDE_KEY = "daily:zh-hide";
 const VIEWS = ["paragraph", "sentences"] as const;
-const TABS = ["translate", "vocab"] as const;
+const TABS = ["translate", "vocab", "reading"] as const;
 type Tab = (typeof TABS)[number];
 
 /** 기기별 편의 설정: 마지막 난이도, 병음 보기 */
@@ -121,7 +122,9 @@ function Chinese({ phrases, vocab }: { phrases: ZhPhraseWithTranslations[]; voca
         description={
           tab === "translate"
             ? "한국어로 쓰면 원하는 난이도의 중국어로 바꿔 줍니다. 번역한 문장은 아래에 쌓입니다."
-            : "외우고 싶은 단어·숙어·문장을 모아 둡니다. 뜻과 해석, 예문은 AI가 만들어 줍니다."
+            : tab === "vocab"
+              ? "외우고 싶은 단어·숙어·문장을 모아 둡니다. 뜻과 해석, 예문은 AI가 만들어 줍니다."
+              : "AI가 만든 HSK 독해 문제를 풀고, 틀린 빈칸은 오답노트로 다시 풉니다."
         }
         action={
           <Segmented<Tab>
@@ -130,6 +133,7 @@ function Chinese({ phrases, vocab }: { phrases: ZhPhraseWithTranslations[]; voca
             options={[
               { value: "translate", label: "번역", icon: <Languages className="size-4" /> },
               { value: "vocab", label: `단어장 ${vocab.length}`, icon: <BookOpen className="size-4" /> },
+              { value: "reading", label: "독해", icon: <BookOpenCheck className="size-4" /> },
             ]}
           />
         }
@@ -145,6 +149,8 @@ function Chinese({ phrases, vocab }: { phrases: ZhPhraseWithTranslations[]; voca
           pinyinToggle={pinyinToggle}
           aiAvailable={aiAvailable}
         />
+      ) : tab === "reading" ? (
+        <HskPanel aiAvailable={aiAvailable} />
       ) : (
         <VocabPanel
           items={vocab}
@@ -155,7 +161,7 @@ function Chinese({ phrases, vocab }: { phrases: ZhPhraseWithTranslations[]; voca
         />
       )}
 
-      <HandwritingPad />
+      {tab !== "reading" && <HandwritingPad />}
     </div>
   );
 }

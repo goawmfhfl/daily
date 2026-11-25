@@ -28,6 +28,8 @@ export const qk = {
   zhPairs: (translationId: string, version: string) => ["chinese", "pairs", translationId, version] as const,
   /** 중국어 단어장 */
   zhVocab: ["zh-vocab"] as const,
+  /** HSK 독해: 급수별 첫 화면 요약 (풀·정답률·오답노트·최근 세트) */
+  hsk: (level: number) => ["hsk", level] as const,
   /** 고양시 현재 날씨 */
   weather: ["weather"] as const,
 };

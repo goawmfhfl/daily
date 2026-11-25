@@ -17,6 +17,8 @@ export const DELETE = handler(async () => {
     supabase.from("experiences").delete().eq("user_id", user.id),
     supabase.from("zh_vocab").delete().eq("user_id", user.id),
     supabase.from("zh_phrases").delete().eq("user_id", user.id),
+    // 풀이·오답노트는 세트 삭제 시 cascade
+    supabase.from("hsk_sets").delete().eq("user_id", user.id),
   ];
   for (const s of steps) {
     const { error } = await s;
