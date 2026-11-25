@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import { SelectToVocab } from "@/components/chinese/select-to-vocab";
 import { useToast } from "@/components/ui/toast";
 
 const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
@@ -126,6 +127,7 @@ export function HskSolve({
         </div>
       } badge={mode === "retry" ? <Badge tone="warning">다시 풀기 · {targets.length}문항</Badge> : null} />
 
+      <SelectToVocab>
       <Card>
         <CardBody>
           <Passage
@@ -143,8 +145,10 @@ export function HskSolve({
               );
             }}
           />
+          <SelectHint />
         </CardBody>
       </Card>
+      </SelectToVocab>
 
       <ol className="space-y-3">
         {targets.map((b) => (
@@ -242,7 +246,7 @@ export function HskResult({
   const perfect = correct === graded.length;
 
   return (
-    <div className="space-y-5">
+    <SelectToVocab className="space-y-5">
       <SetHeader set={set} right={<Button variant="ghost" size="sm" onClick={onHome}>독해 홈</Button>} />
 
       {/* 점수 */}
@@ -307,6 +311,7 @@ export function HskResult({
               {set.translation_ko}
             </p>
           )}
+          <SelectHint />
         </CardBody>
       </Card>
 
@@ -358,7 +363,7 @@ export function HskResult({
           </>
         }
       />
-    </div>
+    </SelectToVocab>
   );
 }
 
@@ -382,7 +387,7 @@ function BlankReview({ set, blank: b, graded: g, selected }: { set: HskSetRow; b
           {g.correct ? "정답" : "오답"}
         </span>
       </div>
-      <p className="mx-4 mt-3 border-l-2 border-accent/50 pl-3 text-body leading-relaxed text-foreground/90">{b.explanation}</p>
+      <p data-zh-context className="mx-4 mt-3 border-l-2 border-accent/50 pl-3 text-body leading-relaxed text-foreground/90">{b.explanation}</p>
       <ul className="mt-3 divide-y divide-border border-t border-border">
         {b.options.map((o, i) => {
           const isAnswer = i === b.answer;
@@ -396,7 +401,7 @@ function BlankReview({ set, blank: b, graded: g, selected }: { set: HskSetRow; b
                   {isAnswer && <Badge tone="success">정답</Badge>}
                   {isMine && !isAnswer && <Badge tone="danger">내 선택</Badge>}
                 </div>
-                <p className="mt-0.5 text-caption leading-relaxed text-muted">{b.option_notes[i]}</p>
+                <p data-zh-context className="mt-0.5 text-caption leading-relaxed text-muted">{b.option_notes[i]}</p>
               </div>
               <AddWord word={o} context={context} />
             </li>
@@ -422,11 +427,14 @@ function AddWord({ word, context }: { word: string; context: string }) {
       title={saved ? "단어장에 있음" : "단어장에 추가"}
       aria-label={saved ? `${word} 단어장에 있음` : `${word} 단어장에 추가`}
       className={cn(
-        "mt-0.5 shrink-0 rounded-md p-1.5 transition-colors",
-        saved ? "text-accent" : "text-subtle hover:bg-surface-2 hover:text-foreground disabled:opacity-60",
+        "mt-0.5 inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2.5 text-micro font-semibold transition-colors",
+        saved
+          ? "border-transparent bg-accent-soft text-accent"
+          : "border-border bg-surface text-muted hover:border-border-strong hover:text-foreground disabled:opacity-60",
       )}
     >
-      {pending ? <Spinner className="size-4" /> : saved ? <BookmarkCheck className="size-4" /> : <BookmarkPlus className="size-4" />}
+      {pending ? <Spinner className="size-3.5" /> : saved ? <BookmarkCheck className="size-3.5" /> : <BookmarkPlus className="size-3.5" />}
+      <span className="hidden sm:inline">{saved ? "단어장에 있음" : pending ? "만드는 중" : "단어장"}</span>
     </button>
   );
 }
@@ -452,7 +460,7 @@ function SetHeader({ set, right, badge }: { set: HskSetRow; right?: React.ReactN
 
 function Passage({ set, render }: { set: HskSetRow; render: (no: number) => React.ReactNode }) {
   return (
-    <p lang="zh-CN" className="whitespace-pre-line text-[1.125rem] leading-[2.2] tracking-wide text-foreground/95">
+    <p data-zh-context lang="zh-CN" className="whitespace-pre-line text-[1.125rem] leading-[2.2] tracking-wide text-foreground/95">
       {splitPassage(set.passage).map((part, i) =>
         typeof part === "number" ? <React.Fragment key={i}>{render(part)}</React.Fragment> : <React.Fragment key={i}>{part}</React.Fragment>,
       )}
@@ -488,5 +496,15 @@ function BlankChip({
       <span className="text-[0.7rem] font-bold not-italic tabular opacity-70">{no}</span>
       <span className="font-semibold">{word ?? "　　　"}</span>
     </Tag>
+  );
+}
+
+/** 드래그로 단어장에 넣을 수 있다는 안내 */
+function SelectHint() {
+  return (
+    <p className="mt-3 flex items-center gap-1.5 text-micro text-subtle">
+      <BookmarkPlus className="size-3.5" />
+      모르는 단어는 드래그해서 단어장에 넣을 수 있어요 <span className="[@media(hover:hover)]:hidden">(길게 눌러 선택)</span>
+    </p>
   );
 }

@@ -158,7 +158,7 @@ export const VocabCard = React.forwardRef<
             <div className="space-y-4 border-t border-border bg-surface-2/40 px-5 py-4 animate-fade-in">
               {item.explanation && (
                 <SelfCover key={String(hide)} hide={hide} label="해석 보기">
-                  <p className="border-l-2 border-accent/50 pl-3 text-caption leading-relaxed text-muted">
+                  <p data-zh-context className="border-l-2 border-accent/50 pl-3 text-caption leading-relaxed text-muted">
                     {item.explanation}
                   </p>
                 </SelfCover>
@@ -172,7 +172,7 @@ export const VocabCard = React.forwardRef<
                       </span>
                       <div className={cn("flex min-w-0 flex-1", hide ? "flex-col-reverse" : "flex-col")}>
                         <SelfCover key={String(hide)} hide={hide} label="눌러서 확인">
-                          <p lang="zh-CN" className="text-[1.0625rem] font-medium leading-snug">{ex.hanzi}</p>
+                          <p data-zh-context lang="zh-CN" className="text-[1.0625rem] font-medium leading-snug">{ex.hanzi}</p>
                           <p className={cn("mt-0.5 text-micro text-subtle", !showPinyin && "hidden")}>{ex.pinyin}</p>
                         </SelfCover>
                         <p className={cn("text-caption", hide ? "mb-1.5 text-foreground/90" : "mt-0.5 text-muted")}>

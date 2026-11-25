@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Pagination } from "@/components/ui/pagination";
 import { useToast } from "@/components/ui/toast";
 import { VocabCard } from "./vocab-card";
+import { SelectToVocab } from "./select-to-vocab";
 import { ReviewSummary, buildQueue } from "./review-summary";
 import { ReviewSession } from "./review-session";
 import { vocabStatus, type VocabStatus } from "@/lib/zh-review";
@@ -277,6 +278,8 @@ export function VocabPanel({
           </p>
         ) : (
           <div ref={listTopRef} className="scroll-mt-16 space-y-4 md:scroll-mt-6">
+          {/* 예문·해석 속 모르는 단어도 드래그해서 바로 추가 */}
+          <SelectToVocab>
           <ul className="space-y-3">
             {paged.map((v) => (
               <li key={v.id}>
@@ -294,6 +297,7 @@ export function VocabPanel({
               </li>
             ))}
           </ul>
+          </SelectToVocab>
           {pageCount > 1 && (
             <div className="space-y-1.5 pt-2">
               <Pagination page={page} pageCount={pageCount} onChange={changePage} />
