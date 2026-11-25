@@ -25,6 +25,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { StatTile } from "@/components/ui/stat-tile";
 import { useToast } from "@/components/ui/toast";
 import { HskResult, HskSolve } from "./hsk-solve";
+import { ReadingResult, ReadingSolve } from "./hsk-reading";
 import { HskGenerating } from "./hsk-generating";
 
 type View =
@@ -130,8 +131,11 @@ export function HskPanel({ aiAvailable }: { aiAvailable: boolean }) {
     }
   }
 
+  // 3부분은 지문과 문항을 나란히 두도록 넓은 화면에서 양옆으로 조금 더 쓴다
+  const wide = (view.kind === "solve" || view.kind === "result") && view.set.part === 3;
+
   return (
-    <div ref={topRef} className="scroll-mt-6">
+    <div ref={topRef} className={cn("scroll-mt-6", wide && "lg:-mx-12 xl:-mx-32")}>
       {view.kind === "generating" ? (
         <HskGenerating
           similar={view.similar}
@@ -141,24 +145,24 @@ export function HskPanel({ aiAvailable }: { aiAvailable: boolean }) {
           }}
         />
       ) : view.kind === "solve" ? (
-        <HskSolve
-          key={`${view.set.id}:${view.mode}`}
-          set={view.set}
-          mode={view.mode}
-          retryNos={view.retryNos}
-          onQuit={() => go({ kind: "home" })}
-          onDone={(r) => go({ kind: "result", set: view.set, mode: view.mode, ...r })}
-        />
+        React.createElement(view.set.part === 3 ? ReadingSolve : HskSolve, {
+          key: `${view.set.id}:${view.mode}`,
+          set: view.set,
+          mode: view.mode,
+          retryNos: view.retryNos,
+          onQuit: () => go({ kind: "home" }),
+          onDone: (r) => go({ kind: "result", set: view.set, mode: view.mode, ...r }),
+        })
       ) : view.kind === "result" ? (
-        <HskResult
-          set={view.set}
-          mode={view.mode}
-          selected={view.selected}
-          graded={view.graded}
-          duration={view.duration}
-          onHome={() => go({ kind: "home" })}
-          onNext={view.review ? undefined : start}
-        />
+        React.createElement(view.set.part === 3 ? ReadingResult : HskResult, {
+          set: view.set,
+          mode: view.mode,
+          selected: view.selected,
+          graded: view.graded,
+          duration: view.duration,
+          onHome: () => go({ kind: "home" }),
+          onNext: view.review ? undefined : start,
+        })
       ) : (
         <Home
           loading={summary.isPending}
@@ -278,7 +282,16 @@ function Home({
             value={String(part)}
             onChange={(v) => onPart(Number(v) as HskPart)}
             fullWidth
-            options={HSK_PART_LIST.map((p) => ({ value: String(p), label: `${HSK_PARTS[p].short} · ${HSK_PARTS[p].label}` }))}
+            options={HSK_PART_LIST.map((p) => ({
+              value: String(p),
+              label: (
+                <span className="flex flex-col items-center leading-tight sm:flex-row sm:gap-1">
+                  <span className="text-micro opacity-70 sm:text-caption sm:opacity-100">{HSK_PARTS[p].short}</span>
+                  <span className="hidden sm:inline">·</span>
+                  <span>{HSK_PARTS[p].label}</span>
+                </span>
+              ),
+            }))}
           />
 
           <div className="space-y-2">
@@ -425,17 +438,16 @@ function WrongCard({
         {g.items.map((w) => {
           const b = g.set.blanks.find((x) => x.no === w.blank_no)!;
           // 2부분은 보기 문장이 길어 글자 대신 A~F 와 정답 문장 앞부분
-          const choice = (i: number) =>
-            g.set.part === 2 ? OPTION_LETTERS[i] : b.options[i];
+          // 1부분은 단어 그대로, 2·3부분은 보기가 길어 A~F 와 정답 문장(문항) 앞부분
+          const choice = (i: number) => (g.set.part === 1 ? b.options[i] : OPTION_LETTERS[i]);
+          const snippet = g.set.part === 2 ? g.set.choices?.[w.answer]?.text : g.set.part === 3 ? b.stem : null;
           return (
             <span key={w.id} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-caption">
               <span className="font-bold tabular text-subtle">{w.blank_no}</span>
               <span lang="zh-CN" className="text-danger line-through decoration-danger/60">{choice(w.selected)}</span>
               <span className="text-subtle">→</span>
               <span lang="zh-CN" className="font-semibold text-success">{choice(w.answer)}</span>
-              {g.set.part === 2 && g.set.choices && (
-                <span lang="zh-CN" className="min-w-0 truncate text-muted">{g.set.choices[w.answer].text}</span>
-              )}
+              {snippet && <span lang="zh-CN" className="min-w-0 truncate text-muted">{snippet}</span>}
               {w.stage > 0 && <span className="shrink-0 text-micro text-subtle">· {w.stage}/3</span>}
             </span>
           );

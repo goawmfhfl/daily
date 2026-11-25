@@ -4,6 +4,7 @@ import { openai, MODELS } from "@/lib/openai";
 import { HSK_LEVEL_SPEC, HSK_TOPICS, type HskLevel, type HskPart } from "@/lib/hsk";
 import type { HskBlank, HskChoice } from "@/lib/types";
 import { buildSentenceSet } from "./hsk-sentence";
+import { buildReadingSet } from "./hsk-reading";
 
 /* ───────── 출제 ───────── */
 
@@ -279,7 +280,9 @@ export async function buildHskSet(opts: {
   focusWords?: string[];
   avoidTitles?: string[];
 }): Promise<BuiltSet> {
-  return opts.part === 2 ? buildSentenceSet(opts) : buildWordSet(opts);
+  if (opts.part === 3) return buildReadingSet(opts);
+  if (opts.part === 2) return buildSentenceSet(opts);
+  return buildWordSet(opts);
 }
 
 /** 1부분: 단어 빈칸 */

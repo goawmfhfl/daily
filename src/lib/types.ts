@@ -338,8 +338,21 @@ export type FactorInsightResponse =
 
 /* ───────── HSK 독해 ───────── */
 
-/** 빈칸 유형: 실사 호응 / 성어 / 접속어·부사(논리) / 문장(2부분) */
-export type HskBlankKind = "collocation" | "idiom" | "connective" | "sentence";
+/**
+ * 문항 유형
+ * - 1부분 빈칸: 실사 호응 / 성어 / 접속어·부사(논리)
+ * - 2부분: 문장
+ * - 3부분 독해 이해: 세부 정보 / 태도·심경 추론 / 종합 추론 / 밑줄 친 말의 뜻
+ */
+export type HskBlankKind =
+  | "collocation"
+  | "idiom"
+  | "connective"
+  | "sentence"
+  | "detail"
+  | "attitude"
+  | "inference"
+  | "meaning";
 
 /** 2부분 공용 보기 (A~F) */
 export interface HskChoice {
@@ -359,6 +372,10 @@ export interface HskBlank {
   explanation: string;
   /** 보기별 뜻과 맞고 틀린 이유 (한국어, options 와 같은 순서) */
   option_notes: string[];
+  /** 3부분: 문항 줄기 (질문 또는 "对于…，…：" 같은 완성형) */
+  stem?: string;
+  /** 3부분: 정답 근거가 되는 본문 문장 (그대로 인용) */
+  evidence?: string;
 }
 
 export interface HskSetRow {

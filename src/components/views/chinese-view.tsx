@@ -124,7 +124,7 @@ function Chinese({ phrases, vocab }: { phrases: ZhPhraseWithTranslations[]; voca
             ? "한국어로 쓰면 원하는 난이도의 중국어로 바꿔 줍니다. 번역한 문장은 아래에 쌓입니다."
             : tab === "vocab"
               ? "외우고 싶은 단어·숙어·문장을 모아 둡니다. 뜻과 해석, 예문은 AI가 만들어 줍니다."
-              : "AI가 만든 HSK 독해 문제를 풀고, 틀린 빈칸은 오답노트로 다시 풉니다."
+              : "AI가 만든 HSK 독해 문제(빈칸 채우기·문장 고르기·독해 이해)를 풀고, 틀린 문제는 오답노트로 다시 풉니다."
         }
         action={
           <Segmented<Tab>

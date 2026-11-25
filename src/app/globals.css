@@ -207,6 +207,12 @@
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "ss05", "cv01";
   }
+  /* 중국어는 글자 사이에서도 줄을 바꾼다. 한국어용 keep-all 이 걸리면 문장부호에서만 꺾여 줄이 들쭉날쭉해진다.
+     strict: 닫는 문장부호(，。」)가 줄 맨 앞에 오지 않게 */
+  :lang(zh) {
+    word-break: normal;
+    line-break: strict;
+  }
   ::selection {
     background: color-mix(in oklab, var(--accent) 25%, transparent);
   }

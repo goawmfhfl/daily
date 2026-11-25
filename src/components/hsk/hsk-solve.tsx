@@ -24,7 +24,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { SelectToVocab } from "@/components/chinese/select-to-vocab";
 import { useToast } from "@/components/ui/toast";
 
-const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+export const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 
 /* ───────── 풀이 ───────── */
 
@@ -263,13 +263,10 @@ export function HskResult({
   onNext?: () => void;
   onHome: () => void;
 }) {
-  const toast = useToast();
-  const report = useReportHsk();
   const [showKo, setShowKo] = React.useState(false);
   const [confirm, setConfirm] = React.useState(false);
   const correct = graded.filter((g) => g.correct).length;
   const gradedNos = new Set(graded.map((g) => g.no));
-  const perfect = correct === graded.length;
   const isSentence = set.part === 2;
   const choices = set.choices ?? [];
   const text = (b: HskBlank, i: number) => (isSentence ? (choices[i]?.text ?? "") : b.options[i]);
@@ -281,35 +278,7 @@ export function HskResult({
     <SelectToVocab className="space-y-5">
       <SetHeader set={set} right={<Button variant="ghost" size="sm" onClick={onHome}>독해 홈</Button>} />
 
-      {/* 점수 */}
-      <Card className={cn("overflow-hidden", perfect ? "border-success/40" : "")}>
-        <CardBody className="flex flex-wrap items-center gap-5">
-          <div className="flex items-baseline gap-1">
-            <span className={cn("text-[2.75rem] font-semibold leading-none tracking-tight tabular", perfect ? "text-success" : "text-foreground")}>
-              {correct}
-            </span>
-            <span className="text-title font-medium text-subtle">/ {graded.length}</span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-heading font-semibold">
-              {perfect ? "모두 맞혔어요" : mode === "retry" ? `${correct}개를 다시 맞혔어요` : `${graded.length - correct}개를 오답노트에 담았어요`}
-            </p>
-            <p className="text-caption text-muted">
-              {duration != null && `${mmss(duration)} 걸림 · `}
-              {mode === "retry"
-                ? "맞힌 빈칸은 다음 복습이 뒤로 밀리고, 틀린 빈칸은 내일 다시 나와요."
-                : perfect
-                  ? "해설로 근거까지 한 번 더 확인해 보세요."
-                  : "틀린 빈칸은 내일 오답노트에서 다시 풀 수 있어요."}
-            </p>
-          </div>
-          {onNext && (
-            <Button onClick={onNext}>
-              다음 세트 <ArrowRight className="size-4" />
-            </Button>
-          )}
-        </CardBody>
-      </Card>
+      <ScoreCard correct={correct} total={graded.length} duration={duration} mode={mode} onNext={onNext} unit="빈칸" />
 
       {/* 정답을 채운 지문 */}
       <Card>
@@ -382,36 +351,7 @@ export function HskResult({
         )}
       </div>
 
-      <Dialog
-        open={confirm}
-        onClose={() => setConfirm(false)}
-        title="이 세트를 신고할까요?"
-        description="정답이 둘이거나 해설이 틀린 세트는 빼 둡니다. 오답노트와 기록에서도 사라집니다."
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setConfirm(false)}>취소</Button>
-            <Button
-              variant="danger"
-              loading={report.isPending}
-              onClick={() =>
-                report.mutate(
-                  { id: set.id, level: set.level },
-                  {
-                    onSuccess: () => {
-                      setConfirm(false);
-                      toast.push({ tone: "success", title: "신고했어요. 이 세트는 더 나오지 않아요" });
-                      onHome();
-                    },
-                    onError: (e) => toast.push({ tone: "error", title: "신고하지 못했습니다", description: e.message }),
-                  },
-                )
-              }
-            >
-              신고
-            </Button>
-          </>
-        }
-      />
+      <ReportDialog open={confirm} onClose={() => setConfirm(false)} set={set} onDone={onHome} />
     </SelectToVocab>
   );
 }
@@ -462,7 +402,7 @@ function BlankReview({ set, blank: b, graded: g, selected }: { set: HskSetRow; b
 }
 
 /** 보기 단어를 단어장에: 기존 AI 카드 생성을 그대로 쓰고, 빈칸이 있던 문장을 문맥으로 */
-function AddWord({ word, context }: { word: string; context: string }) {
+export function AddWord({ word, context }: { word: string; context: string }) {
   const vocab = useZhVocab();
   const add = useAddZhVocab();
   const jobs = useZhVocabJobs();
@@ -595,7 +535,105 @@ function SentenceReview({ set, blank: b, graded: g }: { set: HskSetRow; blank: H
 
 /* ───────── 공통 ───────── */
 
-function SetHeader({ set, right, badge }: { set: HskSetRow; right?: React.ReactNode; badge?: React.ReactNode }) {
+/** 채점 결과 맨 위: 점수와 한 줄 안내 */
+export function ScoreCard({
+  correct,
+  total,
+  duration,
+  mode,
+  onNext,
+  unit,
+}: {
+  correct: number;
+  total: number;
+  duration: number | null;
+  mode: "first" | "retry";
+  onNext?: () => void;
+  /** "빈칸" / "문항" */
+  unit: string;
+}) {
+  const perfect = correct === total;
+  return (
+    <Card className={cn("overflow-hidden", perfect ? "border-success/40" : "")}>
+      <CardBody className="flex flex-wrap items-center gap-5">
+        <div className="flex items-baseline gap-1">
+          <span className={cn("text-[2.75rem] font-semibold leading-none tracking-tight tabular", perfect ? "text-success" : "text-foreground")}>
+            {correct}
+          </span>
+          <span className="text-title font-medium text-subtle">/ {total}</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-heading font-semibold">
+            {perfect ? "모두 맞혔어요" : mode === "retry" ? `${correct}개를 다시 맞혔어요` : `${total - correct}개를 오답노트에 담았어요`}
+          </p>
+          <p className="text-caption text-muted">
+            {duration != null && `${mmss(duration)} 걸림 · `}
+            {mode === "retry"
+              ? `맞힌 ${unit}은 다음 복습이 뒤로 밀리고, 틀린 ${unit}은 내일 다시 나와요.`
+              : perfect
+                ? "해설로 근거까지 한 번 더 확인해 보세요."
+                : `틀린 ${unit}은 내일 오답노트에서 다시 풀 수 있어요.`}
+          </p>
+        </div>
+        {onNext && (
+          <Button onClick={onNext}>
+            다음 세트 <ArrowRight className="size-4" />
+          </Button>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+/** "정답이 이상해요" 확인 창 */
+export function ReportDialog({
+  open,
+  onClose,
+  set,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  set: HskSetRow;
+  onDone: () => void;
+}) {
+  const toast = useToast();
+  const report = useReportHsk();
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="이 세트를 신고할까요?"
+      description="정답이 둘이거나 해설이 틀린 세트는 빼 둡니다. 오답노트와 기록에서도 사라집니다."
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>취소</Button>
+          <Button
+            variant="danger"
+            loading={report.isPending}
+            onClick={() =>
+              report.mutate(
+                { id: set.id, level: set.level },
+                {
+                  onSuccess: () => {
+                    onClose();
+                    toast.push({ tone: "success", title: "신고했어요. 이 세트는 더 나오지 않아요" });
+                    onDone();
+                  },
+                  onError: (e) => toast.push({ tone: "error", title: "신고하지 못했습니다", description: e.message }),
+                },
+              )
+            }
+          >
+            신고
+          </Button>
+        </>
+      }
+    />
+  );
+}
+
+export function SetHeader({ set, right, badge }: { set: HskSetRow; right?: React.ReactNode; badge?: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <div className="min-w-0 flex-1">
@@ -664,7 +702,7 @@ function BlankChip({
 }
 
 /** 드래그로 단어장에 넣을 수 있다는 안내 */
-function SelectHint() {
+export function SelectHint() {
   return (
     <p className="mt-3 flex items-center gap-1.5 text-micro text-subtle">
       <BookmarkPlus className="size-3.5" />
