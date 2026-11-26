@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, BookOpen, Plus, RotateCw, Search, Sparkles, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, BookOpen, Plus, RefreshCw, RotateCw, Search, Sparkles, X } from "lucide-react";
 import {
   ZH_VOCAB_KINDS,
   ZH_VOCAB_KIND_LABEL,
@@ -13,6 +13,8 @@ import {
   useAddZhVocab,
   useDismissZhVocabJob,
   useToday,
+  useRegenerateZhVocab,
+  useRegeneratingIds,
   useZhVocabJobs,
   type ZhVocabJob,
 } from "@/lib/query/hooks";
@@ -32,6 +34,7 @@ import { ReviewSummary, buildQueue } from "./review-summary";
 import { ReviewSession } from "./review-session";
 import { vocabStatus, type VocabStatus } from "@/lib/zh-review";
 import { todayKey } from "@/lib/utils";
+import { nonKoreanFields } from "@/lib/zh-lang";
 
 type Filter = "all" | ZhVocabKind;
 
@@ -205,6 +208,8 @@ export function VocabPanel({
         </CardBody>
       </Card>
 
+      <NotKoreanBanner items={items} />
+
       {items.length > 0 && (
         <ReviewSummary
           items={items}
@@ -360,6 +365,64 @@ function JobCard({
         <Skeleton className="h-2" />
         <Skeleton className="h-2 w-2/3" />
       </div>
+    </div>
+  );
+}
+
+/**
+ * 뜻·해석이 한국어로 만들어지지 않은 카드가 있으면 한꺼번에 다시 만들 수 있게 알려 준다.
+ * 동시에 3개씩 보내고, 끝나면 몇 개 고쳤는지 알려 준다.
+ */
+function NotKoreanBanner({ items }: { items: ZhVocabRow[] }) {
+  const toast = useToast();
+  const regen = useRegenerateZhVocab();
+  const running = useRegeneratingIds();
+  const [busy, setBusy] = React.useState(false);
+  const broken = React.useMemo(
+    () => items.filter((v) => !v.source_translation_id && nonKoreanFields(v).length > 0),
+    [items],
+  );
+  if (!broken.length && !busy) return null;
+
+  async function fixAll() {
+    setBusy(true);
+    const queue = broken.filter((v) => !running.has(v.id)).map((v) => v.id);
+    let ok = 0;
+    let failed = 0;
+    const worker = async () => {
+      for (let id = queue.shift(); id; id = queue.shift()) {
+        try {
+          await regen.mutateAsync(id);
+          ok++;
+        } catch {
+          failed++;
+        }
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+    setBusy(false);
+    toast.push({
+      tone: failed ? "error" : "success",
+      title: failed ? `${ok}개 고쳤고 ${failed}개는 실패했어요` : `${ok}개 카드를 한국어로 다시 만들었어요`,
+      description: failed ? "남은 카드는 카드의 다시 만들기 버튼으로 다시 시도해 주세요." : undefined,
+    });
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-warning/40 bg-warning-soft px-4 py-3">
+      <AlertTriangle className="size-4 shrink-0 text-warning" />
+      <p className="min-w-0 flex-1 text-caption text-foreground/90">
+        {busy ? (
+          <>한국어로 다시 만드는 중 · 남은 카드 {broken.length}개</>
+        ) : (
+          <>
+            뜻이나 해석이 한국어로 만들어지지 않은 카드가 <b className="tabular">{broken.length}</b>개 있어요.
+          </>
+        )}
+      </p>
+      <Button size="sm" variant="secondary" onClick={fixAll} loading={busy}>
+        <RefreshCw className="size-3.5" /> 모두 다시 만들기
+      </Button>
     </div>
   );
 }

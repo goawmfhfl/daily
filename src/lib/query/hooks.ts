@@ -786,6 +786,30 @@ export function useSaveZhSentence() {
   });
 }
 
+/** 카드 다시 만들기 요청을 앱 전체에서 보기 위한 키 (진행 중 표시) */
+export const ZH_VOCAB_REGEN_KEY = ["zh-vocab", "regenerate"] as const;
+
+/** 카드 내용을 AI로 다시 만든다 (표현·암기 상태는 그대로) */
+export function useRegenerateZhVocab() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ZH_VOCAB_REGEN_KEY,
+    mutationFn: (id: string) =>
+      api<{ item: ZhVocabRow }>(`/api/zh-vocab/${id}/regenerate`, { method: "POST" }).then((r) => r.item),
+    onSuccess: (item) =>
+      qc.setQueryData<ZhVocabRow[]>(qk.zhVocab, (list) => list?.map((v) => (v.id === item.id ? item : v))),
+  });
+}
+
+/** 지금 다시 만드는 중인 카드 id 들 */
+export function useRegeneratingIds(): Set<string> {
+  const ids = useMutationState({
+    filters: { mutationKey: ZH_VOCAB_REGEN_KEY, status: "pending" },
+    select: (m) => m.state.variables as string,
+  });
+  return React.useMemo(() => new Set(ids), [ids]);
+}
+
 export function useDeleteZhVocab() {
   const qc = useQueryClient();
   return useMutation({

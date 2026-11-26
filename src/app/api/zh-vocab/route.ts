@@ -5,6 +5,9 @@ import { buildVocabCard } from "@/lib/ai/zh-vocab";
 import { hasOpenAI } from "@/lib/openai";
 import type { ZhVocabRow } from "@/lib/types";
 
+/** 카드 생성은 한국어 확인 후 재시도까지 하면 길게는 수십 초 */
+export const maxDuration = 120;
+
 /** GET /api/zh-vocab — 단어장 전체, 최신순 */
 export const GET = handler(async () => {
   const { supabase } = await requireUser();

@@ -4,22 +4,32 @@ import { openai, MODELS } from "@/lib/openai";
 import { ZH_VOCAB_KINDS, type ZhVocabKind } from "@/lib/constants";
 import type { ZhExample } from "@/lib/types";
 import { verifyPinyin } from "./zh-pinyin";
+import { nonKoreanFields } from "@/lib/zh-lang";
 
 /* 스키마·프롬프트는 이 기능 안에서만 쓰므로 함께 둔다 (Structured Outputs strict) */
 
+// 칸마다 쓸 언어를 설명으로 붙인다 (스키마 설명도 모델에 전달된다)
+const KO = "반드시 한국어로. 중국어 표현은 작은따옴표로 인용할 때만.";
 const VocabSchema = z.object({
   kind: z.enum(ZH_VOCAB_KINDS),
-  hanzi: z.string(),
-  pinyin: z.string(),
-  part_of_speech: z.string(),
-  meaning: z.string(),
-  explanation: z.string(),
-  examples: z.array(z.object({ hanzi: z.string(), pinyin: z.string(), ko: z.string() })),
+  hanzi: z.string().describe("중국어(간체자)"),
+  pinyin: z.string().describe("병음, 성조 기호, 글자마다 한 음절"),
+  part_of_speech: z.string().describe(`품사 한 단어. ${KO}`),
+  meaning: z.string().describe(`뜻. ${KO}`),
+  explanation: z.string().describe(`쓰임·뉘앙스·搭配 설명 2~3문장. ${KO}`),
+  examples: z.array(
+    z.object({
+      hanzi: z.string().describe("중국어 예문"),
+      pinyin: z.string(),
+      ko: z.string().describe(`예문의 한국어 해석. ${KO}`),
+    }),
+  ),
 });
 
 const SYSTEM_PROMPT = `
 당신은 한국어 화자를 위한 중국어 선생님입니다. 사용자가 단어장에 넣고 싶은 항목 하나를 받아, 외우기 좋은 단어장 카드로 정리합니다.
 중국어는 간체자, 중국 대륙 표준어 기준입니다.
+가장 중요한 규칙: 카드를 읽는 사람은 한국인이다. 입력과 문맥이 중국어여도 뜻·해석·품사·예문 해석은 모두 한국어로 쓴다.
 
 [입력]
 - 중국어(단어·숙어·문장) 또는 한국어로 들어온다.
@@ -60,24 +70,60 @@ export interface VocabCard {
   model: string;
 }
 
-export async function buildVocabCard(input: string, context?: string | null): Promise<VocabCard> {
-  const model = MODELS.fast;
+/** 입력·문맥이 중국어일수록 모델이 답까지 중국어로 쓰는 일이 있어, 요청 끝에 한 번 더 못 박는다 */
+const KO_REMINDER = "※ meaning, explanation, part_of_speech, examples.ko 는 모두 한국어로 쓰세요. 중국어로 쓰지 마세요.";
+
+/**
+ * 시도 순서: 빠른 모델(최소 추론) → 빠른 모델(조금 더 생각, 지적 포함) → 리포트 모델.
+ * 가벼운 모델은 입력이 중국어 위주면 뜻·해석을 중국어로 쓰는 경우가 있어,
+ * 한국어 칸이 한국어가 아니면 다음 단계로 다시 만든다.
+ */
+const ATTEMPTS = [
+  { model: () => MODELS.fast, effort: "minimal" as const },
+  { model: () => MODELS.fast, effort: "low" as const },
+  { model: () => MODELS.report, effort: "low" as const },
+];
+
+async function requestCard(input: string, context: string | null | undefined, model: string, effort: "minimal" | "low", feedback?: string) {
   const res = await openai().responses.parse({
     model,
-    ...(model.startsWith("gpt-5") || model.startsWith("o")
-      ? { reasoning: { effort: "minimal" as const } }
-      : {}),
+    ...(model.startsWith("gpt-5") || model.startsWith("o") ? { reasoning: { effort } } : {}),
     input: [
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        content: context ? `항목: ${input}\n문맥 문장: ${context}` : `항목: ${input}`,
+        content: [
+          `항목: ${input}`,
+          context ? `문맥 문장: ${context}` : "",
+          feedback ?? "",
+          KO_REMINDER,
+        ]
+          .filter(Boolean)
+          .join("\n"),
       },
     ],
     text: { format: zodTextFormat(VocabSchema, "zh_vocab_card") },
   });
+  return res.output_parsed;
+}
 
-  const out = res.output_parsed;
+export async function buildVocabCard(input: string, context?: string | null): Promise<VocabCard> {
+  let out: z.infer<typeof VocabSchema> | null = null;
+  let model = MODELS.fast;
+  let feedback: string | undefined;
+
+  for (const [i, step] of ATTEMPTS.entries()) {
+    model = step.model();
+    out = await requestCard(input, context, model, step.effort, feedback);
+    if (!out) continue;
+    const bad = nonKoreanFields(out);
+    if (!bad.length) break;
+    console.info(`[zh-vocab] "${input}" 시도${i + 1} 한국어 아님: ${bad.join(", ")}`);
+    feedback = `직전 결과에서 ${bad.join(", ")} 칸이 한국어가 아니었습니다(중국어로 쓰였거나 중국어가 섞임). 이 칸들을 한국어로 다시 쓰세요.`;
+    if (i === ATTEMPTS.length - 1) {
+      throw new Error("뜻을 한국어로 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+    }
+  }
   if (!out) throw new Error("단어장 카드를 만들지 못했습니다.");
 
   const hanzi = out.hanzi.trim();

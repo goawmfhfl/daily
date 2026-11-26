@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { ZH_VOCAB_KIND_LABEL } from "@/lib/constants";
 import type { ZhVocabRow } from "@/lib/types";
 import { cn, relativeDayLabel, todayKey } from "@/lib/utils";
-import { useDeleteZhVocab, useReviewZhVocab } from "@/lib/query/hooks";
+import { useDeleteZhVocab, useRegenerateZhVocab, useRegeneratingIds, useReviewZhVocab } from "@/lib/query/hooks";
+import { nonKoreanFields } from "@/lib/zh-lang";
+import { Spinner } from "@/components/ui/spinner";
 import { dueLabel, isStudyToday, nextKnowLabel, STATUS_META, vocabStatus, type ReviewAction } from "@/lib/zh-review";
 import { StageDots } from "./stage-dots";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +27,11 @@ export const VocabCard = React.forwardRef<
   const toast = useToast();
   const del = useDeleteZhVocab();
   const review = useReviewZhVocab();
+  const regen = useRegenerateZhVocab();
+  const regenerating = useRegeneratingIds().has(item.id);
+  // 번역에서 옮겨 온 문장은 번역 카드가 원본이라 다시 만들지 않는다
+  const canRegen = !item.source_translation_id;
+  const notKorean = canRegen && nonKoreanFields(item).length > 0;
   const status = vocabStatus(item, today);
   const meta = STATUS_META[status];
 
@@ -37,6 +44,13 @@ export const VocabCard = React.forwardRef<
       },
     );
   }
+  function regenerate() {
+    regen.mutate(item.id, {
+      onSuccess: () => toast.push({ tone: "success", title: "카드를 다시 만들었어요", description: item.hanzi }),
+      onError: (e) => toast.push({ tone: "error", title: "다시 만들지 못했어요", description: e.message }),
+    });
+  }
+
   const [open, setOpen] = React.useState(!!highlight);
   const [confirm, setConfirm] = React.useState(false);
 
@@ -54,7 +68,9 @@ export const VocabCard = React.forwardRef<
       className={cn(
         "surface-card overflow-hidden transition-[border-color,box-shadow]",
         highlight && "border-accent/40 shadow-md",
+        notKorean && "border-warning/40",
       )}
+      aria-busy={regenerating || undefined}
     >
       <div className="px-5 pt-4">
         <div className="flex items-center gap-2">
@@ -64,6 +80,18 @@ export const VocabCard = React.forwardRef<
           <span className="ml-auto text-micro text-subtle">
             {relativeDayLabel(todayKey(new Date(item.created_at)), todayKey())}
           </span>
+          {canRegen && (
+            <button
+              type="button"
+              onClick={regenerate}
+              disabled={regenerating}
+              aria-label="카드 다시 만들기"
+              title="뜻·해석·예문을 AI로 다시 만들기"
+              className="rounded-md p-1.5 text-subtle transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-60"
+            >
+              {regenerating ? <Spinner className="size-3.5" /> : <RefreshCw className="size-3.5" />}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setConfirm(true)}
@@ -74,8 +102,19 @@ export const VocabCard = React.forwardRef<
           </button>
         </div>
 
+        {/* 뜻·해석이 한국어로 만들어지지 않은 카드 */}
+        {notKorean && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-warning-soft px-3 py-2 text-caption">
+            <AlertTriangle className="size-4 shrink-0 text-warning" />
+            <span className="min-w-0 flex-1 text-foreground/90">뜻이나 해석이 한국어로 만들어지지 않았어요.</span>
+            <Button size="sm" variant="secondary" onClick={regenerate} loading={regenerating}>
+              <RefreshCw className="size-3.5" /> 다시 만들기
+            </Button>
+          </div>
+        )}
+
         {/* 앞면: 가리기 중엔 뜻을 먼저 크게, 중국어는 덮어 둔다 */}
-        <div className={cn("mt-3 flex", hide ? "flex-col-reverse" : "flex-col")}>
+        <div className={cn("mt-3 flex transition-opacity", hide ? "flex-col-reverse" : "flex-col", regenerating && "opacity-50")}>
           <SelfCover key={String(hide)} hide={hide} label="떠올려 본 뒤 눌러서 확인">
             {isSentence && item.segments.length > 0 ? (
               <ZhSentence segments={item.segments} showPinyin={showPinyin} context={item.hanzi} />
