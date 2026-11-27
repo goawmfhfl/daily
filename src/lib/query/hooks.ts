@@ -110,17 +110,6 @@ export function useHabits() {
   return useQuery({ queryKey: qk.habits, queryFn: fetchers.habits });
 }
 
-/** 활동별 어제까지 연속 일수. 오늘 체크분은 화면에서 더한다 */
-export function useHabitStreaks(today: string | null) {
-  return useQuery({
-    queryKey: qk.habitStreaks(today ?? ""),
-    queryFn: () =>
-      api<{ streaks: Record<string, number> }>(`/api/habits/streaks?today=${today}`).then((r) => r.streaks),
-    enabled: !!today,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
 /** 드래그로 바꾼 순서: 화면 먼저, 실패하면 되돌림 */
 export function useReorderHabits() {
   const qc = useQueryClient();
@@ -425,13 +414,10 @@ export function useUpdateHabit() {
       emoji?: string | null;
     }) =>
       api<{ habit: HabitRow }>(`/api/habits/${id}`, { method: "PATCH", body }),
-    onSuccess: ({ habit }, body) => {
+    onSuccess: ({ habit }) => {
       qc.setQueryData<HabitRow[]>(qk.habits, (list) =>
         list?.map((h) => (h.id === habit.id ? habit : h)),
       );
-      // 요일·시작일이 바뀌면 연속 일수도 달라진다
-      if (body.weekdays || body.started_at || body.active !== undefined)
-        void qc.invalidateQueries({ queryKey: ["habits", "streaks"] });
     },
   });
 }

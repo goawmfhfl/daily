@@ -13,8 +13,6 @@ export const qk = {
   entry: (id: string) => ["entries", "detail", id] as const,
   semantic: (q: string) => ["entries", "semantic", q] as const,
   habits: ["habits"] as const,
-  /** 활동별 어제까지 연속 일수 (기기 기준 오늘별) */
-  habitStreaks: (today: string) => ["habits", "streaks", today] as const,
   habitChecks: (from: string, to: string) => ["habit-checks", from, to] as const,
   reports: ["reports"] as const,
   report: (id: string) => ["reports", "detail", id] as const,

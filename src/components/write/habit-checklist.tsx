@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, Flame, GripVertical, Plus } from "lucide-react";
+import { Check, GripVertical, Plus } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -26,7 +26,6 @@ import type { HabitRow } from "@/lib/types";
 import {
   useHabits,
   useHabitChecks,
-  useHabitStreaks,
   useReorderHabits,
   useToggleHabitCheck,
   useUpdateHabit,
@@ -45,7 +44,6 @@ export function HabitChecklist({ dateKey }: { dateKey: string }) {
   const toast = useToast();
   const habitsQuery = useHabits();
   const checksQuery = useHabitChecks(dateKey);
-  const streaksQuery = useHabitStreaks(dateKey);
   const toggleCheck = useToggleHabitCheck(dateKey);
   const reorder = useReorderHabits();
   const updateHabit = useUpdateHabit();
@@ -156,7 +154,6 @@ export function HabitChecklist({ dateKey }: { dateKey: string }) {
                     key={h.id}
                     habit={h}
                     on={done.has(h.id)}
-                    streak={(streaksQuery.data?.[h.id] ?? 0) + (done.has(h.id) ? 1 : 0)}
                     onToggle={() => toggle(h.id)}
                     onEmoji={(e) => setEmoji(h.id, e)}
                   />
@@ -173,14 +170,11 @@ export function HabitChecklist({ dateKey }: { dateKey: string }) {
 function HabitItem({
   habit: h,
   on,
-  streak,
   onToggle,
   onEmoji,
 }: {
   habit: HabitRow;
   on: boolean;
-  /** 오늘 체크까지 포함한 연속 일수 */
-  streak: number;
   onToggle: () => void;
   onEmoji: (emoji: string | null) => void;
 }) {
@@ -244,26 +238,6 @@ function HabitItem({
       >
         {h.name}
       </button>
-
-      <StreakBadge days={streak} lit={on} />
     </li>
-  );
-}
-
-/** 연속 일수: 오늘 하면 불이 켜지고, 아직이면 흐린 불씨로 남는다 */
-function StreakBadge({ days, lit }: { days: number; lit: boolean }) {
-  if (days < 1) return null;
-  return (
-    <span
-      key={days}
-      title={lit ? `${days}일째 이어가는 중` : `${days}일 이어 왔어요 · 오늘 하면 ${days + 1}일`}
-      className={cn(
-        "inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-micro font-semibold tabular transition-colors animate-fade-in",
-        lit ? "bg-warning-soft text-warning" : "text-subtle",
-      )}
-    >
-      <Flame className={cn("size-3", lit && "fill-current")} strokeWidth={2.2} />
-      {days}
-    </span>
   );
 }
