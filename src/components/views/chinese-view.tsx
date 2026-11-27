@@ -105,7 +105,7 @@ function Chinese({ phrases, vocab }: { phrases: ZhPhraseWithTranslations[]; voca
   // 가리기: 한국어만 보고 중국어를 떠올린 뒤 눌러서 확인 / 병음: 한자 아래 발음
   const pinyinToggle = (
     <div className="flex items-center gap-1.5">
-      <Chip size="sm" selected={hide} onClick={toggleHide} title="한국어만 보고 중국어로 말해 보기">
+      <Chip size="sm" selected={hide} onClick={toggleHide} title="모든 카드의 중국어 가리기 · 카드마다 눈 아이콘으로 따로 바꿀 수 있어요">
         <EyeOff className="size-3.5" /> 중국어 가리기
       </Chip>
       <Chip size="sm" selected={showPinyin} onClick={togglePinyin}>
@@ -295,7 +295,7 @@ function TranslatePanel({
                 ? "한국어만 보고 중국어로 말해 본 뒤, 눌러서 맞춰 보세요."
                 : view === "sentences"
                   ? "한 문장씩 나눠 외우기 좋게 보여 줍니다."
-                  : "중국어 가리기를 켜면 즉석 번역 연습을 할 수 있어요."}
+                  : "중국어 가리기를 켜거나, 카드의 눈 아이콘으로 그 카드만 가려 즉석 번역 연습을 할 수 있어요."}
             </p>
           </div>
         )}

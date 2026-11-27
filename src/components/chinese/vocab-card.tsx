@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { ZhSentence } from "./zh-sentence";
-import { SelfCover } from "./zh-study";
+import { CardHideToggle, SelfCover, useCardHide } from "./zh-study";
 
 const KIND_TONE = { word: "accent", idiom: "warning", sentence: "neutral" } as const;
 
@@ -23,8 +23,10 @@ const KIND_TONE = { word: "accent", idiom: "warning", sentence: "neutral" } as c
 export const VocabCard = React.forwardRef<
   HTMLElement,
   { item: ZhVocabRow; showPinyin: boolean; hide?: boolean; today: string; highlight?: boolean }
->(function VocabCard({ item, showPinyin, hide = false, today, highlight }, ref) {
+>(function VocabCard({ item, showPinyin, hide: globalHide = false, today, highlight }, ref) {
   const toast = useToast();
+  // 위쪽 전체 가리기를 따르되, 카드에서 이 카드만 따로 가리거나 보일 수 있다
+  const [hide, toggleHide] = useCardHide(globalHide);
   const del = useDeleteZhVocab();
   const review = useReviewZhVocab();
   const regen = useRegenerateZhVocab();
@@ -80,6 +82,7 @@ export const VocabCard = React.forwardRef<
           <span className="ml-auto text-micro text-subtle">
             {relativeDayLabel(todayKey(new Date(item.created_at)), todayKey())}
           </span>
+          <CardHideToggle hide={hide} onToggle={toggleHide} />
           {canRegen && (
             <button
               type="button"

@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/components/ui/toast";
-import { SelfCover, ZhStudy, type ZhView } from "./zh-study";
+import { CardHideToggle, SelfCover, ZhStudy, useCardHide, type ZhView } from "./zh-study";
 
 export function PhraseCard({
   phrase,
@@ -25,19 +25,20 @@ export function PhraseCard({
   preferredLevel,
   highlight,
   view,
-  hide,
+  hide: globalHide,
 }: {
   phrase: ZhPhraseWithTranslations;
   showPinyin: boolean;
   /** 문단 통째로 / 한 문장씩 */
   view: ZhView;
-  /** 중국어를 가리고 한국어만 보며 떠올려 보기 */
+  /** 중국어를 가리고 한국어만 보며 떠올려 보기 (위쪽 전체 설정. 카드에서 따로 바꿀 수 있다) */
   hide: boolean;
   /** 처음 보여 줄 난이도. 그 번역이 없으면 가지고 있는 것 중 첫 번째 */
   preferredLevel: ZhLevel;
   highlight?: boolean;
 }) {
   const toast = useToast();
+  const [hide, toggleHide] = useCardHide(globalHide);
   const addLevel = useAddZhLevel();
   const toggleFav = useToggleZhFavorite();
   const del = useDeleteZhPhrase();
@@ -130,15 +131,18 @@ export function PhraseCard({
             <p className="mt-0.5 line-clamp-1 text-caption text-subtle">{phrase.source_ko}</p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => toggleFav.mutate({ id: phrase.id, favorite: !phrase.favorite })}
-          aria-pressed={phrase.favorite}
-          aria-label={phrase.favorite ? "즐겨찾기 해제" : "즐겨찾기"}
-          className="-mr-1 rounded-md p-1.5 text-subtle transition-colors hover:bg-surface-2 hover:text-foreground"
-        >
-          <Star className={cn("size-4", phrase.favorite && "fill-warning text-warning")} />
-        </button>
+        <div className="-mr-1 flex shrink-0 items-center gap-0.5">
+          <CardHideToggle hide={hide} onToggle={toggleHide} />
+          <button
+            type="button"
+            onClick={() => toggleFav.mutate({ id: phrase.id, favorite: !phrase.favorite })}
+            aria-pressed={phrase.favorite}
+            aria-label={phrase.favorite ? "즐겨찾기 해제" : "즐겨찾기"}
+            className="rounded-md p-1.5 text-subtle transition-colors hover:bg-surface-2 hover:text-foreground"
+          >
+            <Star className={cn("size-4", phrase.favorite && "fill-warning text-warning")} />
+          </button>
+        </div>
       </div>
 
       {/* 난이도 탭: 이미 있는 번역은 바로 전환, 없는 난이도는 눌러서 번역 */}

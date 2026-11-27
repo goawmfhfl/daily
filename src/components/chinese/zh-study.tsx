@@ -54,6 +54,42 @@ export function Cover({
   );
 }
 
+/**
+ * 카드 하나만 가리기: 위쪽 '중국어 가리기'를 따르다가, 카드에서 누르면 그 카드만 바뀐다.
+ * 위쪽 설정을 다시 바꾸면 모든 카드가 그 설정으로 돌아간다.
+ */
+export function useCardHide(globalHide: boolean) {
+  const [own, setOwn] = React.useState<boolean | null>(null);
+  const [prevGlobal, setPrevGlobal] = React.useState(globalHide);
+  if (prevGlobal !== globalHide) {
+    setPrevGlobal(globalHide);
+    setOwn(null);
+  }
+  const hide = own ?? globalHide;
+  const toggle = React.useCallback(() => setOwn(!hide), [hide]);
+  return [hide, toggle] as const;
+}
+
+/** 카드 머리의 가리기 버튼 */
+export function CardHideToggle({ hide, onToggle, className }: { hide: boolean; onToggle: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={hide}
+      aria-label={hide ? "이 카드 중국어 보이기" : "이 카드만 중국어 가리기"}
+      title={hide ? "이 카드 중국어 보이기" : "이 카드만 중국어 가리기"}
+      className={cn(
+        "rounded-md p-1.5 transition-colors",
+        hide ? "bg-accent-soft text-accent" : "text-subtle hover:bg-surface-2 hover:text-foreground",
+        className,
+      )}
+    >
+      <EyeOff className="size-3.5" />
+    </button>
+  );
+}
+
 /** 혼자 열고 닫는 가림막 (가리기 모드가 바뀌면 부모가 key 로 초기화) */
 export function SelfCover({ hide, ...rest }: { hide: boolean } & Omit<React.ComponentProps<typeof Cover>, "covered" | "onReveal">) {
   const [revealed, setRevealed] = React.useState(false);
