@@ -15,7 +15,6 @@ import { PageSkeleton, QueryError } from "@/components/ui/query-state";
 import { useToast } from "@/components/ui/toast";
 import { PhraseCard } from "@/components/chinese/phrase-card";
 import { VocabPanel } from "@/components/chinese/vocab-panel";
-import { HandwritingPad } from "@/components/chinese/handwriting-pad";
 import { HskPanel } from "@/components/hsk/hsk-panel";
 import type { ZhView } from "@/components/chinese/zh-study";
 import type { ZhPhraseWithTranslations, ZhVocabRow } from "@/lib/types";
@@ -160,8 +159,6 @@ function Chinese({ phrases, vocab }: { phrases: ZhPhraseWithTranslations[]; voca
           aiAvailable={aiAvailable}
         />
       )}
-
-      {tab !== "reading" && <HandwritingPad />}
     </div>
   );
 }
